@@ -1,0 +1,165 @@
+Field 40x30
+divide in 4 logicl parts 
+++++++++++++++++++
++       +        +
+++++++++++++++++++ 
++       +        +
+++++++++++++++++++
+
+Field representation
++++++++++++++++++++++++++++++
++++++++++++++++++++++++++++++
++++++++++++++++++++++++++++++
+
+Entities code representations
+Wall		0xFF
+Dots 		0xAA
+Player		0x22
+
+----------------------------------------------------------------------------------------------------------------
+
+players moves constantly (like a snake)
+Inside each sector boundary(generated symmetrically) according to the x axis
+If they crash border -> just stop one wait next move
+If 2 players crash -> they just wait for one player to move
+The whole field is filled with eatable dots or borders
+
+The app should be both server and client
+server decides how many players are there while client just enters lobby and waits(no info about other players)
+Messages: The map generation lies on the server
+Which info is given from server to client:
+----------------------------------------------------------------------------------------------------------
+Server				Client
+----------------------------------------------------------------------------------------------------------
+				<-connect 
+send map->
+				<-ready
+start game->
+
+Keys->				<-Keys
+
+----------------------------------------------------------------------------------------------------------
+
+When game is over all clients should be informed that the game is over
+If the 3/4 clients have different opinions on the winner -> the client with 1/4 should be played with
+THE GAME SHOULD FINISH 
+
+max case: 4 players specials
+server decides which part is given to client
+each client should be informed who other players are(clients/server)
+----------------------------------------------------------------------------------------------------------
+Server							Client(s)
+----------------------------------------------------------------------------------------------------------
+server waits for ALL players to connect			<-connect 
+verify xN(N is amount of playrs)			<-connect
+-> -> -> ->						<-connect
+					 		<-connect
+send map + client info[i]->	
+							<-ready
+							<-ready
+							<-ready
+							<-ready
+start game->
+
+
+Keys(verification of income keys + own outcome keys)->	<-Keys
+							<-Keys
+							<-Keys
+							<-Keys
+
+---------------------------------------------------------------------------------------------------------
+
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++	+++++++++++++++++++++++++
++			+			+			+	+			+
++	uint32_t	+	uint32_t	+	uint32_t	+	+	uint8_t*	+
++	magic		+	ptype		+	datasize	+	+	data		+
++               	+	package_t	+			+	+			+
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++	+++++++++++++++++++++++++
+
+players should exchange with the message
+0xabcdfe01 - magic
+
+1. server should identify itself (by server player)
+	if meets same name -> reject the player
+2. if client connets it doesnt mean he is a valid player
+2. to verify client as a player he should posses a package(magic) (identifier)
+3. client should send a proper package to become a player(if size ovrflow client is rejected)
+4. clients decides by its own if the game is over
+
+PACKAGES:
+
+1) ptype == 1 (connection)
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++	+++++++++++++++++++++++++
++			+			+			+	+			+
++	magic		+	    1		+     datasize < 256	+	+  (char *player_name)	+
++	number		+			+    len == datasize	+	+	data		+
++               	+			+			+	+			+
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++	+++++++++++++++++++++++++
+
+2) ptype == 16 (starting state)	
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++	+++++++++++++++++++++++++
++			+			+			+	+			+
++	magic		+	    16		+			+	+  	map		+
++	number		+			+    len == datasize	+	+	20 x 15 x 1	+
++               	+			+			+	+			+
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++	+++++++++++++++++++++++++
+
+3) ptype == 2 (client ready)
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++	+++++++++++++++++++++++++
++			+			+			+	+			+
++	magic		+	    2		+			+	+  	   0		+
++	number		+			+    len == datasize	+	+			+
++               	+			+			+	+			+
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++	+++++++++++++++++++++++++
+
+4) ptype == 0x20 (start game)
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++	+++++++++++++++++++++++++
++			+			+			+	+			+
++	magic		+	    0x20	+			+	+  	client 		+
++	number		+			+    len == datasize	+	+	ready		+
++               	+			+			+	+			+
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++	+++++++++++++++++++++++++
+
+5)
+UP	0
+DOWN	2
+LEFT	3
+RIGHT	1
+ptype == 0
+Client[i] -> Server
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++	+++++++++++++++++++++++++
++			+			+			+	+			+
++	magic		+	    0		+			+	+  KEY={1, 2, 0, 3, 1}	+
++	number		+			+    len == 13 bytes	+	+			+
++               	+			+			+	+			+
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++	+++++++++++++++++++++++++
+
+6)
+ptype == -1 (0xFFFFFFFF)
+BROACAST: Server -> Client[i-j]
+server informs ALL players if has got a 6.1 Package
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++	+++++++++++++++++++++++++
++			+			+			+	+			+
++	magic		+	    -1		+	key		+	+  	  name 		+
++	number		+			+    			+	+			+
++               	+			+			+	+			+
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++	+++++++++++++++++++++++++
+
+
+uint32_t player_count
+struct player[player_count]
+uint32_t frame_timeout
+
+(each player obtains this structure to be identified and hadled properly by other players)
+struct player {
+	uint32_t start_x;
+	uint32_t start_x;
+	uint32_t player_name_len;
+	uint8_t name[];
+} 
+
+
+---------------------------------------------------------------------------------------------------------
+
+Field
+Client should get only a quarter 1/4 of a field and then multiply it by its own
