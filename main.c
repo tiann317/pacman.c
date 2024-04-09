@@ -1,18 +1,22 @@
-//TODO:     implement random-ish wall generator for arr1[][]
-//          fix leave the logic wall when ' ' or '.' located on boundaries
-//          2nd local player
-//          server/client communication
+//TODO:     fix genarr1()
+//          future plans:
+//          1. server open socket
+//          2. server listens -> client connects
+//          3. server sends arr1[][]
+//          4. client tells he is ready
+//          5. server informs about the start of the game
+//          6. game starts and with the only var of dir8t exchange
 #include <ncurses.h>
 #include <pthread.h>
 #include <unistd.h> 
 #include <stdlib.h> 
 #include <time.h>
 
-#define RIGHT 'd'
-#define LEFT 'a'
-#define UP 'w'
-#define DOWN 's'
-#define QUIT 'q'
+#define right 'd'
+#define left 'a'
+#define up 'w'
+#define down 's'
+#define quit 'q'
 
 #define FPS_TIMEOUT 70000
 #define height 30
@@ -25,11 +29,12 @@ chtype wall = '#';
 chtype food = '.';
 chtype empt = ' ';
 
+uint8_t dir8t;
 const int name_len = 256;
 unsigned int score = 0;
 int dir_x;
-char arr1[lheight][lwidth] = {
-    {'#','#','#','#','#','#','#','#','#','#','#','#','#','#','#','#','#','#','#','#'},
+/*char arr1[lheight][lwidth] = {
+    {'.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.'},
     {'#','#','#','#','#','#','#','#','#','#','.','#','#','#','#','#','#','#','#','#'},
     {'#','#','#','#','#','#','#','#','#','#','.','#','#','#','#','#','#','#','#','#'},
     {'#','#','#','#','#','#','#','#','#','#','.','#','#','#','#','#','#','#','#','#'},
@@ -42,12 +47,62 @@ char arr1[lheight][lwidth] = {
     {'#','#','#','#','.','#','#','#','#','#','.','#','#','#','#','.','#','#','#','#'},
     {'#','#','#','#','.','#','#','#','#','#','.','#','#','#','#','.','#','#','#','#'},
     {'#','#','#','#','.','#','#','#','#','#','.','#','#','#','#','.','#','#','#','#'},
-    {'#','#','#','#','.','#','#','#','#','#','.','#','#','#','#','.','.','.','#','#'},
-    {'#','#','#','#','.','#','#','#','#','#','.','#','#','#','#','#','#','.','.','.'},
-};
+    {'.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.'},
+    {'.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.'},
+};*/
+char arr1[lheight][lwidth];
 char arr2[lheight][lwidth];
 char arr3[lheight][lwidth];
 char arr4[lheight][lwidth];
+
+static void randarr1(char arr[lheight][lwidth]) {
+    for (int i = 0; i < lheight; i++) {
+        for (int j = 0; j < lwidth; j++) {
+            arr[i][j] = rand()%2;
+        }
+    }
+}
+
+static void genarr1(char arr[lheight][lwidth]) {
+    int wall_counter = 0;
+    int offset_i, offset_j;
+    
+    for (int i = 0; i < lheight; i++) {
+        for (int j = 0; j < lwidth; j++) {
+            
+            for (int k = i; k < i+2; k++) {
+                for (int m = j; m < j+2; m++) {
+                    if (arr[k][m] == 2)
+                    wall_counter++;
+                }
+            }
+            
+            while (wall_counter > 6) {
+                offset_i = rand()%2;
+                offset_j = rand()%2;
+                if (arr[i + offset_i][j + offset_j] == 2) {
+                    arr[i + offset_i][j + offset_j] = 1;
+                    wall_counter--;
+                } else {
+                    continue;
+                }                    
+            }
+            wall_counter = 0;
+        }
+    }
+}
+
+static void trarr(char arr[lheight][lwidth]) {
+    for (int i = 0; i < lheight; i++) {
+        for (int j = 0; j < lwidth; j++) {
+            if (arr[i][j] == 1) {
+                arr[i][j] = '.';
+            } else {
+                arr[i][j] = '#';
+            }
+        }
+    }
+}
 
 typedef struct point {
     int x;
@@ -83,15 +138,19 @@ static void logic_quarter(char arr[height][width]) {
 void *input(void *none) {
     for (;;) {
         int temp = getch();
-        if (temp == QUIT) {
+        if (temp == quit) {
             dir_x = temp;
-        } else if (temp == UP || temp == KEY_UP) {
+        } else if (temp == up || temp == KEY_UP) {
+            dir8t = 0;
             dir_x = temp;
-        } else if (temp == DOWN || temp == KEY_DOWN) {
+        } else if (temp == down || temp == KEY_DOWN) {
+            dir8t = 2;
             dir_x = temp;
-        } else if (temp == RIGHT || temp == KEY_RIGHT) {
+        } else if (temp == right || temp == KEY_RIGHT) {
+            dir8t = 1;
             dir_x = temp;
-        } else if (temp == LEFT || temp == KEY_LEFT) {
+        } else if (temp == left || temp == KEY_LEFT) {
+            dir8t = 3;
             dir_x = temp;
         }
 //      recv() dir_y;
@@ -99,6 +158,7 @@ void *input(void *none) {
 }
 
 int main(void) {
+    srand(time(NULL));
     initscr();
     noecho();
     keypad(stdscr, TRUE);
@@ -117,7 +177,12 @@ int main(void) {
     quarter.min.y = boundary.min.y; 
     quarter.max.y = boundary.min.y + 15;
     quarter.max.x = boundary.min.x + 20;
-
+//  (i,j)   (i+1,j)     (i,j+1)     (i+1,j+1)
+//          (i-1,j)     (i,j-1)     (j-1,j-1)
+//                                              (i-1,j+1)   (i+1,j-1) 
+    randarr1(arr1);
+    genarr1(arr1);
+    trarr(arr1);
     for (int i = 0; i < lheight; i++) {
         for (int j = 0; j < lwidth; j++) 
         arr2[i][j] = arr1[i][lwidth - 1 - j];        
@@ -156,7 +221,7 @@ int main(void) {
     
     while(TRUE) {
         logic_quarter(map);
-        if (mvprintw(0, 0, "log heady: %d; logheadx: %d", loghead.y, loghead.x) == ERR)
+        if (mvprintw(0, 0, "dir8t: %d", dir8t) == ERR)
             printw("Error! error %d", ERR);
         mvaddch(dsplhead.y, dsplhead.x, pac_head);
         refresh();
@@ -183,7 +248,7 @@ int main(void) {
                 printw("Error! error %d", ERR);
             }
                 for(;;) {
-                    if (dir_x == QUIT) {
+                    if (dir_x == quit) {
                         endwin();
                         return 0;
                     } else {
@@ -192,67 +257,71 @@ int main(void) {
                 }
         }
             switch (dir_x) {
-            case DOWN:
+            case down:
             case KEY_DOWN:
                 pac_head = '^';
-                if (map[loghead.y + 1][loghead.x] == '.') {
+                if (map[loghead.y + 1][loghead.x] == '.' && loghead.y + 1 < height) {
                     loghead.y++;
                     dsplhead.y++;
                     score++;
                     map[loghead.y][loghead.x] = ' ';
-                } else if (map[loghead.y + 1][loghead.x] == '#') {
+                } else if (map[loghead.y + 1][loghead.x] == '#' ||\
+                (map[loghead.y + 1][loghead.x] != '#' && loghead.y + 1 == height)) {
                     loghead.y = loghead.y;
                 } else {
                     loghead.y++;
                     dsplhead.y++;
                 }    
                 break;
-            case UP:
+            case up:
             case KEY_UP: 
                 pac_head = 'v';
-                if (map[loghead.y - 1][loghead.x] == '.') {
+                if (map[loghead.y - 1][loghead.x] == '.' && loghead.y - 1 >= 0) {
                     loghead.y--;
                     dsplhead.y--;
                     score++;
                     map[loghead.y][loghead.x] = ' ';
-                } else if (map[loghead.y - 1][loghead.x] == '#') {
+                } else if (map[loghead.y - 1][loghead.x] == '#' ||\
+                (map[loghead.y - 1][loghead.x] != '#' && loghead.y - 1 == -1)) {
                     loghead.y = loghead.y;
                 } else {
                     loghead.y--;
                     dsplhead.y--;
                 }
                 break;
-            case LEFT:
+            case left:
             case KEY_LEFT:
                 pac_head = '>';
-                if (map[loghead.y][loghead.x - 1] == '.') {
+                if (map[loghead.y][loghead.x - 1] == '.' && loghead.x - 1 >= 0) {
                     loghead.x--;
                     dsplhead.x--;
                     score++;
                     map[loghead.y][loghead.x] = ' ';
-                } else if (map[loghead.y][loghead.x - 1] == '#') {
+                } else if (map[loghead.y][loghead.x - 1] == '#' ||\
+                (map[loghead.y][loghead.x - 1] != '#' && loghead.x - 1 == -1)) {
                     loghead.x = loghead.x;
                 } else {
                     loghead.x--;
                     dsplhead.x--;
                 }
                 break;
-            case RIGHT:
+            case right:
             case KEY_RIGHT:
                 pac_head = '<';
-                if (map[loghead.y][loghead.x + 1] == '.') {
+                if (map[loghead.y][loghead.x + 1] == '.' && loghead.x + 1 < width) {
                     loghead.x++;
                     dsplhead.x++;
                     score++;
                     map[loghead.y][loghead.x] = ' ';
-                } else if (map[loghead.y][loghead.x + 1] == '#') {
+                } else if (map[loghead.y][loghead.x + 1] == '#' ||\
+                (map[loghead.y][loghead.x + 1] != '#' && loghead.x + 1 == width)) {
                     loghead.x = loghead.x;
                 } else {
                     loghead.x++;
                     dsplhead.x++;
                 }
                 break;         
-            case QUIT:
+            case quit:
                 done = TRUE;
                 break;  
             }
