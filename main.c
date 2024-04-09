@@ -24,17 +24,18 @@ chtype wall = '#';
 chtype food = '.';
 chtype empt = ' ';
 
+const int name_len = 256;
 unsigned int score = 0;
 int dir_x;
 char arr1[lheight][lwidth] = {
-    {'#','#','#','#','#','#','#','#','#','#','#','#','#','#','#','#','#','#','#','#'},
     {'#','#','#','#','#','#','#','#','#','#','.','#','#','#','#','#','#','#','#','#'},
     {'#','#','#','#','#','#','#','#','#','#','.','#','#','#','#','#','#','#','#','#'},
     {'#','#','#','#','#','#','#','#','#','#','.','#','#','#','#','#','#','#','#','#'},
     {'#','#','#','#','#','#','#','#','#','#','.','#','#','#','#','#','#','#','#','#'},
     {'#','#','#','#','#','#','#','#','#','#','.','#','#','#','#','#','#','#','#','#'},
     {'#','#','#','#','#','#','#','#','#','#','.','#','#','#','#','#','#','#','#','#'},
-    {'#','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.'},
+    {'#','#','#','#','#','#','#','#','#','#','.','#','#','#','#','#','#','#','#','#'},
+    {'.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.'},
     {'#','#','#','#','#','#','#','#','#','#','.','#','#','#','#','#','#','#','#','#'},
     {'#','#','#','#','#','#','#','#','#','#','.','#','#','#','#','#','#','#','#','#'},
     {'#','#','#','#','#','#','#','#','#','#','.','#','#','#','#','#','#','#','#','#'},
@@ -154,7 +155,7 @@ int main(void) {
     
     while(TRUE) {
         logic_quarter(map);
-        if (mvprintw(0, 0, "Score: %d", score) == ERR)
+        if (mvprintw(0, 0, "log heady: %d; logheadx: %d", loghead.y, loghead.x) == ERR)
             printw("Error! error %d", ERR);
         mvaddch(dsplhead.y, dsplhead.x, pac_head);
         refresh();
@@ -200,7 +201,7 @@ int main(void) {
                     map[loghead.y][loghead.x] = ' ';
                 } else if (map[loghead.y + 1][loghead.x] == '#') {
                     loghead.y = loghead.y;
-                } else {
+                } else if (map[loghead.y][loghead.x + 1] == ' ') {
                     loghead.y++;
                     dsplhead.y++;
                 }    
@@ -215,7 +216,7 @@ int main(void) {
                     map[loghead.y][loghead.x] = ' ';
                 } else if (map[loghead.y - 1][loghead.x] == '#') {
                     loghead.y = loghead.y;
-                } else {
+                } else if (map[loghead.y][loghead.x + 1] == ' ') {
                     loghead.y--;
                     dsplhead.y--;
                 }
@@ -230,7 +231,7 @@ int main(void) {
                     map[loghead.y][loghead.x] = ' ';
                 } else if (map[loghead.y][loghead.x - 1] == '#') {
                     loghead.x = loghead.x;
-                } else {
+                } else if (map[loghead.y][loghead.x + 1] == ' ') {
                     loghead.x--;
                     dsplhead.x--;
                 }
@@ -245,7 +246,7 @@ int main(void) {
                     map[loghead.y][loghead.x] = ' ';
                 } else if (map[loghead.y][loghead.x + 1] == '#') {
                     loghead.x = loghead.x;
-                } else {
+                } else if (map[loghead.y][loghead.x + 1] == ' ') {
                     loghead.x++;
                     dsplhead.x++;
                 }
