@@ -1,9 +1,9 @@
-**To compile you need libncurses5-dev**  
+# To compile you need libncurses5-dev**  
+```bash
 $ chmod +x build.sh  
 $ ./build.sh  
-$ ./main  
-
-requirements:
+$ ./main
+```
 
 # Долгосрочное задание
 
