@@ -1,22 +1,29 @@
 Field 40x30
-divide in 4 logicl parts 
+divide in 4 logical parts 
 ++++++++++++++++++
 +       +        +
 ++++++++++++++++++ 
 +       +        +
 ++++++++++++++++++
 
-Field representation
-+++++++++++++++++++++++++++++
-+++++++++++++++++++++++++++++
-+++++++++++++++++++++++++++++
+------------------------
+Field representation: 
+one dimensioned array(at the moment of p)
+[0]->->->->->->->->->
+->->->->->->->->->->
+->->->->->->->->->->
+->->->->->->->->->->
+->->->->->->->->[299]
+30
+-----------------------
 
-Entities code representations
+
+Entities code representations:
 Wall		0xFF
 Dots 		0xAA
 Player		0x22
 
-----------------------------------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------
 
 players moves constantly (like a snake)
 Inside each sector boundary(generated symmetrically) according to the x axis
@@ -24,7 +31,7 @@ If they crash border -> just stop one wait next move
 If 2 players crash -> they just wait for one player to move
 The whole field is filled with eatable dots or borders
 
-The app should be both server and client
+The app should perform both server and client processes
 server decides how many players are there while client just enters lobby and waits(no info about other players)
 Messages: The map generation lies on the server
 Which info is given from server to client:
@@ -41,8 +48,9 @@ Keys->				<-Keys
 ----------------------------------------------------------------------------------------------------------
 
 When game is over all clients should be informed that the game is over
-If the 3/4 clients have different opinions on the winner -> the client with 1/4 should be played with
-THE GAME SHOULD FINISH 
+If 3 out 4 clients consider one opinion on the winner -> 
+	the opinion of the client with unpopular (1 out 4) opinion will be rejected
+THE GAME SHOULD FINISH FOR ALL PLAYERS SIMULTANEOUSLY
 
 max case: 4 players specials
 server decides which part is given to client
@@ -79,16 +87,20 @@ Keys(verification of income keys + own outcome keys)->	<-Keys
 players should exchange with the message
 0xabcdfe01 - magic
 
-1. server should identify itself (by server player)
-	if meets same name -> reject the player
+1. server should identify itself (by server's player)
+	if meets same name -> rejects the client with this certain name
 2. if client connets it doesnt mean he is a valid player
 2. to verify client as a player he should posses a package(magic) (identifier)
-3. client should send a proper package to become a player(if size ovrflow client is rejected)
+3. client should send a proper package to become a player(if playername[] size ovrflow client is rejected)
 4. clients decides by its own if the game is over
 
 PACKAGES:
 
 1) ptype == 1 (connection)
+
+				header 
+-------------------------------------------------------------------------        H = {start_x, start_y, start_direction, namelen, name}
+
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++	+++++++++++++++++++++++++
 +			+			+			+	+			+
 +	magic		+	    1		+     datasize < 256	+	+  (char *player_name)	+
@@ -114,10 +126,10 @@ PACKAGES:
 
 4) ptype == 0x20 (start game)
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++	+++++++++++++++++++++++++
-+			+			+			+	+			+
-+	magic		+	    0x20	+			+	+  	client 		+
-+	number		+			+    len == datasize	+	+	ready		+
-+               	+			+			+	+			+
++			+			+			+	+	start_x		+
++	magic		+	    0x20	+			+	+	start_y 	+
++	number		+			+    len == datasize	+	+	start_dir	+
++               	+			+			+	+   name_len	name	+
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++	+++++++++++++++++++++++++
 
 5)
@@ -136,7 +148,7 @@ Client[i] -> Server
 
 6)
 ptype == -1 (0xFFFFFFFF)
-BROACAST: Server -> Client[i-j]
+BROADCAST: Server -> Client[i-j]
 server informs ALL players if has got a 6.1 Package
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++	+++++++++++++++++++++++++
 +			+			+			+	+			+
@@ -153,7 +165,7 @@ uint32_t frame_timeout
 (each player obtains this structure to be identified and hadled properly by other players)
 struct player {
 	uint32_t start_x;
-	uint32_t start_x;
+	uint32_t start_y;
 	uint32_t player_name_len;
 	uint8_t name[];
 } 
@@ -162,4 +174,29 @@ struct player {
 ---------------------------------------------------------------------------------------------------------
 
 Field
-Client should get only a quarter 1/4 of a field and then multiply it by its own
+Client should get only a quarter 1/4 of a field and then multiply it symmetrically on its own
+1.network order htonl
+UP = 0
+DOWN = 2
+left = 3
+right = 1
+from the socket comes only 0-3
+
+
+connectioin stage package ptype 1
+solution 1
+struct payer {
+	char name[256];
+	startx
+	starty
+	start_ir
+	name len
+	nmame;
+}
+
+solution 2
+struct player {
+
+	char* name; -> heap (copy it to the buffer before)
+			
+}
