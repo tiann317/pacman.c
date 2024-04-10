@@ -67,21 +67,21 @@ static void genarr1(char arr[lheight][lwidth]) {
     int wall_counter = 0;
     int offset_i, offset_j;
     
-    for (int i = 0; i < lheight; i++) {
-        for (int j = 0; j < lwidth; j++) {
+    for (int i = 0; i < lheight - 1; i++) {
+        for (int j = 0; j < lwidth - 1; j++) {
             
-            for (int k = i; k < i+2; k++) {
-                for (int m = j; m < j+2; m++) {
-                    if (arr[k][m] == 2)
+            for (int k = i; k < i+3; k++) {
+                for (int m = j; m < j+3; m++) {
+                    if (arr[k][m] == 1)
                     wall_counter++;
                 }
             }
             
-            while (wall_counter > 6) {
-                offset_i = rand()%2;
-                offset_j = rand()%2;
-                if (arr[i + offset_i][j + offset_j] == 2) {
-                    arr[i + offset_i][j + offset_j] = 1;
+            while (wall_counter > 3) {
+                offset_i = rand()%3;
+                offset_j = rand()%3;
+                if (arr[i + offset_i][j + offset_j] == 1) {
+                    arr[i + offset_i][j + offset_j] = 0;
                     wall_counter--;
                 } else {
                     continue;
@@ -95,7 +95,7 @@ static void genarr1(char arr[lheight][lwidth]) {
 static void trarr(char arr[lheight][lwidth]) {
     for (int i = 0; i < lheight; i++) {
         for (int j = 0; j < lwidth; j++) {
-            if (arr[i][j] == 1) {
+            if (arr[i][j] == 0) {
                 arr[i][j] = '.';
             } else {
                 arr[i][j] = '#';
