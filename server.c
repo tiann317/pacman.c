@@ -76,20 +76,26 @@ int main(void)
     read(clientFD, &p1.magic, sizeof(uint32_t));
     read(clientFD, &p1.ptype, sizeof(uint32_t));
     read(clientFD, &p1.datasize, sizeof(uint32_t));
-	p1.data = malloc(sizeof(uint8_t)*p1.datasize);
+
+    printf("magic: %x\nptype: %x\ndatasize: %d\n",\
+	p1.magic, p1.ptype, p1.datasize);	
+
+	p1.data = (uint8_t*) malloc(p1.datasize);
 	if (p1.data == NULL) {
 		printf("Error with malloc\n");
 		return 1;
 	}	
-	recv(sockFD, p1.data, sizeof(p1.data), 0);
-
-//	read(clientFD, p1.data, sizeof(uint8_t)*p1.datasize);	
-    printf("magic: %x\nptype: %x\ndatasize: %d\n",\
-	 p1.magic, p1.ptype, p1.datasize);
-
-	for (uint8_t* ptr = p1.data; ptr < p1.data + p1.datasize; ++ptr) {
-		printf("%d ", *ptr);
-	}
+	
+	read(clientFD, p1.data, p1.datasize);
+	
+	while (*p1.data != '\0') {
+        printf("%c", (char) *p1.data);
+        p1.data++; 
+	} 
+    printf("\n");
+	printf("sizeof(p1.data): %ld\n", sizeof(p1.data));
+	printf("sizeof(*p1.data); %ld\n", sizeof(*p1.data));
+	
 	close(clientFD);
 	close(sockFD);
 	
