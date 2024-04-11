@@ -6,7 +6,7 @@
 #include <unistd.h>
 #define PLAYERNAME_LEN 256
 #define PORT 8080
-const char* playername = "Vasya";
+
 typedef struct Package {
     uint32_t magic;
     uint32_t ptype;
@@ -24,9 +24,7 @@ int main(void) {
 		exit(1);
 	}
 
-	const int enable = 1;
 	int true = 1;
-
 	if (setsockopt(SockFD, SOL_SOCKET, SO_REUSEADDR, &true, sizeof(int)) < 0) {
     	perror("Setsockopt");
 		close(SockFD);
@@ -48,18 +46,18 @@ int main(void) {
     p1.magic = 0xabcdfe01;
     p1.datasize = PLAYERNAME_LEN;
 
-	//convert const char* to uint8_t*
-	p1.data = (uint8_t*) malloc(sizeof(playername));
-	if (p1.data == NULL) {
-		printf("Error with malloc\n");
-		return 1;
-	}
+	char* playername = "Vasya";
+    p1.data = (uint8_t*) malloc(sizeof(playername));
+    if (p1.data == NULL) {
+        printf("Malloc failed\n");
+    }
+    p1.data = playername;
 
-    write(SockFD, &p1.magic, sizeof(htonl(p1.magic)));
-    write(SockFD, &p1.ptype, sizeof(htonl(p1.ptype)));
-    write(SockFD, &p1.datasize, sizeof(htonl(p1.datasize)));
-	send(SockFD, p1.data, sizeof(uint8_t)*p1.datasize, 0);
-
+    write(SockFD, &p1.magic, sizeof(p1.magic));
+    write(SockFD, &p1.ptype, sizeof(p1.ptype));
+    write(SockFD, &p1.datasize, sizeof(p1.datasize));
+	write(SockFD, p1.data, p1.datasize);
+	
     shutdown(SockFD, SHUT_RDWR);
     close(SockFD);
     return 0;
