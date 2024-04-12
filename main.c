@@ -1,11 +1,10 @@
-//TODO:     fix genarr1()
-//          future plans:
-//          1. server open socket
-//          2. server listens -> client connects
-//          3. server sends arr1[][]
-//          4. client tells he is ready
-//          5. server informs about the start of the game
-//          6. game starts and with the only var of dir8t exchange
+//TODO: genarr should generate player position as well
+//TODO: genarr should handle the wall by generating 
+//      cross-like corridors
+//TODO: fix the new map representation with values
+//  wall = 0xff
+//	food = 0xaa
+//	player = 0x22
 #include <ncurses.h>
 #include <pthread.h>
 #include <unistd.h> 
@@ -33,37 +32,18 @@ uint8_t dir8t;
 const int name_len = 256;
 unsigned int score = 0;
 int dir_x;
-/*char arr1[lheight][lwidth] = {
-    {'.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.'},
-    {'#','#','#','#','#','#','#','#','#','#','.','#','#','#','#','#','#','#','#','#'},
-    {'#','#','#','#','#','#','#','#','#','#','.','#','#','#','#','#','#','#','#','#'},
-    {'#','#','#','#','#','#','#','#','#','#','.','#','#','#','#','#','#','#','#','#'},
-    {'#','#','#','#','#','#','#','#','#','#','.','.','.','.','#','#','#','#','#','#'},
-    {'#','#','#','#','#','#','#','#','#','#','.','#','#','#','#','#','#','#','#','#'},
-    {'#','#','#','#','#','#','#','#','#','#','.','#','#','#','#','#','#','#','#','#'},
-    {'#','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.'},
-    {'#','#','#','#','.','#','#','#','#','#','.','#','#','#','#','.','#','#','#','#'},
-    {'#','#','#','#','.','#','#','#','#','#','.','#','#','#','#','.','#','#','#','#'},
-    {'#','#','#','#','.','#','#','#','#','#','.','#','#','#','#','.','#','#','#','#'},
-    {'#','#','#','#','.','#','#','#','#','#','.','#','#','#','#','.','#','#','#','#'},
-    {'#','#','#','#','.','#','#','#','#','#','.','#','#','#','#','.','#','#','#','#'},
-    {'.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.'},
-    {'.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.'},
-};*/
 char arr1[lheight][lwidth];
 char arr2[lheight][lwidth];
 char arr3[lheight][lwidth];
 char arr4[lheight][lwidth];
 
-static void randarr1(char arr[lheight][lwidth]) {
+static void genarr1(char arr[lheight][lwidth]) {
     for (int i = 0; i < lheight; i++) {
         for (int j = 0; j < lwidth; j++) {
             arr[i][j] = rand()%2;
         }
     }
-}
 
-static void genarr1(char arr[lheight][lwidth]) {
     int wall_counter = 0;
     int offset_i, offset_j;
     
@@ -90,10 +70,8 @@ static void genarr1(char arr[lheight][lwidth]) {
             wall_counter = 0;
         }
     }
-}
 
-static void trarr(char arr[lheight][lwidth]) {
-    for (int i = 0; i < lheight; i++) {
+        for (int i = 0; i < lheight; i++) {
         for (int j = 0; j < lwidth; j++) {
             if (arr[i][j] == 0) {
                 arr[i][j] = '.';
@@ -180,9 +158,7 @@ int main(void) {
 //  (i,j)   (i+1,j)     (i,j+1)     (i+1,j+1)
 //          (i-1,j)     (i,j-1)     (j-1,j-1)
 //                                              (i-1,j+1)   (i+1,j-1) 
-    randarr1(arr1);
     genarr1(arr1);
-    trarr(arr1);
     for (int i = 0; i < lheight; i++) {
         for (int j = 0; j < lwidth; j++) 
         arr2[i][j] = arr1[i][lwidth - 1 - j];        
@@ -221,8 +197,8 @@ int main(void) {
     
     while(TRUE) {
         logic_quarter(map);
-        if (mvprintw(0, 0, "dir8t: %d", dir8t) == ERR)
-            printw("Error! error %d", ERR);
+        if (mvprintw(0, 0, "Score: %d", dir8t) == ERR)
+            exit(ERR);
         mvaddch(dsplhead.y, dsplhead.x, pac_head);
         refresh();
         mvaddch(dsplhead.y, dsplhead.x, ' ');
@@ -239,13 +215,13 @@ int main(void) {
             clear();
             refresh();
             if (mvprintw(fullscr.max.y/2, fullscr.max.x/2, "Game Over") == ERR) {
-                printw("Error! error %d", ERR);
+                exit(ERR);
             }
             if (mvprintw(fullscr.max.y/2 + 1, fullscr.max.x/2, "Score: %d", score) == ERR) {
-                printw("Error! error %d", ERR);
+                exit(ERR);
             }
             if (mvprintw(fullscr.max.y/2 + 2, fullscr.max.x/2 - 4, "Press 'q' to leave") == ERR) {
-                printw("Error! error %d", ERR);
+                exit(ERR);
             }
                 for(;;) {
                     if (dir_x == quit) {
