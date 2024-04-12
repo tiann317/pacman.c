@@ -1,3 +1,11 @@
+//TODO: fix the map representation where
+//	wall = 0xff
+//	food = 0xaa
+//	player = 0x22
+//TODO: implement package 0x00 (client press button)
+//TODO: implement package 0xffffffff (server broadcasts each client's movements 
+//to others)
+
 #include <stdio.h>
 #include <unistd.h>
 #include <arpa/inet.h>
@@ -9,19 +17,34 @@
 #define PLAYERNAME_LEN 256
 #define PORT 8080
 #define BUFF 300
+#define lheight 15
+#define lwidth 20
 
-const char* playername = "Petya";
+uint32_t frame_timeout;
+uint32_t player_count;
+
+char playername[] = "Petya";
 int sockFD;
+
+typedef struct player {
+  uint32_t start_x;
+  uint32_t start_y;
+  uint32_t start_direction;
+  uint32_t player_name_len;
+  uint8_t player_name[];
+} Player;
+
+//Player players[player_count];
 
 typedef struct Package {
     uint32_t magic;
     uint32_t ptype;
     uint32_t datasize;
-    uint8_t* data;
 } Package;
 
 Package p1;
-
+Package p2;
+Package p3;
 
 void sigint_handler(int sig) {
 	puts("exiting...");
@@ -31,6 +54,24 @@ void sigint_handler(int sig) {
 
 int main(void) 
 {
+
+	char arr1[lheight][lwidth] = {
+    	{'.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.'},
+		{'#','#','#','#','#','#','#','#','#','#','.','#','#','#','#','#','#','#','#','#'},
+    	{'#','#','#','#','#','#','#','#','#','#','.','#','#','#','#','#','#','#','#','#'},
+    	{'#','#','#','#','#','#','#','#','#','#','.','#','#','#','#','#','#','#','#','#'},
+    	{'#','#','#','#','#','#','#','#','#','#','.','.','.','.','#','#','#','#','#','#'},
+    	{'#','#','#','#','#','#','#','#','#','#','.','#','#','#','#','#','#','#','#','#'},
+    	{'#','#','#','#','#','#','#','#','#','#','.','#','#','#','#','#','#','#','#','#'},
+    	{'#','.','.','.','.','.','.','.','.','.','o','.','.','.','.','.','.','.','.','.'},
+    	{'#','#','#','#','.','#','#','#','#','#','.','#','#','#','#','.','#','#','#','#'},
+    	{'#','#','#','#','.','#','#','#','#','#','.','#','#','#','#','.','#','#','#','#'},
+    	{'#','#','#','#','.','#','#','#','#','#','.','#','#','#','#','.','#','#','#','#'},
+    	{'#','#','#','#','.','#','#','#','#','#','.','#','#','#','#','.','#','#','#','#'},
+    	{'#','#','#','#','.','#','#','#','#','#','.','#','#','#','#','.','#','#','#','#'},
+    	{'.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.'},
+    	{'.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.'},
+	};
 	signal(SIGINT, sigint_handler);
 	sockFD = socket(AF_INET, SOCK_STREAM, 0);
 	if (sockFD < 0) {
@@ -73,29 +114,21 @@ int main(void)
 		exit(1);
 	}
 
-    read(clientFD, &p1.magic, sizeof(uint32_t));
-    read(clientFD, &p1.ptype, sizeof(uint32_t));
-    read(clientFD, &p1.datasize, sizeof(uint32_t));
+	read(clientFD, &p1, sizeof(p1));
+	char name[PLAYERNAME_LEN];
+	read(clientFD, &name, p1.datasize);
+	printf("%s", name);
 
-    printf("magic: %x\nptype: %x\ndatasize: %d\n",\
-	p1.magic, p1.ptype, p1.datasize);	
+	p2.magic = 0xabcdfe01;
+	p2.ptype = 0x10;
+	p2.datasize = sizeof(arr1);
 
-	p1.data = (uint8_t*) malloc(p1.datasize);
-	if (p1.data == NULL) {
-		printf("Error with malloc\n");
-		return 1;
-	}	
+	write(clientFD, &p2, sizeof(p2));
+	write(clientFD, &arr1, p2.datasize);
 	
-	read(clientFD, p1.data, p1.datasize);
-	
-	while (*p1.data != '\0') {
-        printf("%c", (char) *p1.data);
-        p1.data++; 
-	} 
-    printf("\n");
-	printf("sizeof(p1.data): %ld\n", sizeof(p1.data));
-	printf("sizeof(*p1.data); %ld\n", sizeof(*p1.data));
-	
+	read(clientFD, &p3, sizeof(p3));
+
+	printf("\n%x\n", p3.ptype);
 	close(clientFD);
 	close(sockFD);
 	
