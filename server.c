@@ -15,13 +15,12 @@
 #include <signal.h>
 #include <string.h>
 #define PLAYERNAME_LEN 256
+#define PLAYER_COUNT 4
 #define PORT 8080
 #define BUFF 300
 #define lheight 15
 #define lwidth 20
-
-uint32_t frame_timeout;
-uint32_t player_count;
+#define FPS 70000
 
 char playername[] = "Petya";
 int sockFD;
@@ -34,9 +33,15 @@ typedef struct player {
   uint8_t player_name[];
 } Player;
 
-//Player players[player_count];
+typedef struct Info {
+	uint32_t frame_timeout;
+	uint32_t pl_count;
+	Player players[PLAYER_COUNT];
+} Info;
 
-typedef struct Package {
+Info info;
+
+typedef struct package {
     uint32_t magic;
     uint32_t ptype;
     uint32_t datasize;
@@ -45,6 +50,8 @@ typedef struct Package {
 Package p1;
 Package p2;
 Package p3;
+Package p4;
+Package p5;
 
 void sigint_handler(int sig) {
 	puts("exiting...");
@@ -125,10 +132,52 @@ int main(void)
 
 	write(clientFD, &p2, sizeof(p2));
 	write(clientFD, &arr1, p2.datasize);
-	
 	read(clientFD, &p3, sizeof(p3));
 
-	printf("\n%x\n", p3.ptype);
+	p4.magic = 0xabcdfe01;
+	p4.ptype = 0x20;
+	p4.datasize = PLAYER_COUNT;
+	write(clientFD, &p4, sizeof(p4));
+
+	char playernameD[] = "Dasha";
+	char playernameV[] = "Vasya";
+	char playernameM[] = "Masha";
+
+	strcpy(info.players[0].player_name, playername);
+	strcpy(info.players[1].player_name, playernameM);
+	strcpy(info.players[2].player_name, playernameV);
+	strcpy(info.players[3].player_name, playernameD);
+
+	info.players[0].player_name_len = sizeof(playername);
+	info.players[1].player_name_len = sizeof(playernameM);
+	info.players[2].player_name_len = sizeof(playernameV);
+	info.players[3].player_name_len = sizeof(playernameD);
+
+	info.players[0].start_direction = 2;
+	info.players[1].start_direction = 3;
+	info.players[2].start_direction = 1;
+	info.players[3].start_direction = 1;
+
+	info.players[0].start_x = 12;
+	info.players[1].start_x = 32;
+	info.players[2].start_x = 14;
+	info.players[3].start_x = 35;
+
+	info.players[0].start_y = 3;
+	info.players[1].start_y = 6;
+	info.players[2].start_y = 29;
+	info.players[3].start_y = 32;
+
+	info.frame_timeout = FPS;
+	info.pl_count = PLAYER_COUNT;
+
+	p5.magic = 0xabcdfe01;
+	p5.ptype = 0x20;
+	p5.datasize = sizeof(info);
+	write(clientFD, &p5, sizeof(p5));
+	write(clientFD, &info, p5.datasize);
+
+
 	close(clientFD);
 	close(sockFD);
 	
