@@ -7,6 +7,14 @@
 #define lheight 15
 #define lwidth 20
 #define PORT 8080
+#define PLAYERNAME_LEN
+
+typedef struct player {
+  uint32_t start_x;
+  uint32_t start_y;
+  uint32_t start_direction;
+  uint8_t player_name[PLAYERNAME_LEN];
+} Player;
 
 typedef struct Package {
     uint32_t magic;
@@ -17,6 +25,8 @@ typedef struct Package {
 Package p1;
 Package p2;
 Package p3;
+Package p4;
+Package p5;
 
 int main(void) { 
 	char map[lheight][lwidth];
@@ -56,7 +66,7 @@ int main(void) {
 	write(SockFD, &playername, p1.datasize);
 
 	read(SockFD, &p2, sizeof(p2));
-	char pkgdata[lheight*lwidth];
+	char pkgdata[p2.datasize];
 	read(SockFD, &pkgdata, p2.datasize);
 
  	int k = 0;
@@ -77,6 +87,34 @@ int main(void) {
     p3.ptype = 0x02;
     p3.datasize = 0;
 	write(SockFD, &p3, sizeof(p3));
+
+	read(SockFD, &p4, sizeof(p4));
+
+	printf("magic %x\n", p4.magic);
+	printf("ptype %d\n", p4.ptype);	
+	printf("amount of players %d\n", p4.datasize);
+
+	typedef struct Info {
+		uint32_t frame_timeout;
+		uint32_t pl_count;
+		Player players[p4.datasize];
+	} Info;
+
+	Info info;
+	read(SockFD, &p5, sizeof(p5));
+	read(SockFD, &info, p5.datasize);
+	printf("FPS %d\n", info.frame_timeout);
+	for (int i = 0; i < p4.datasize; i++) 
+		printf("Startx player[%d]: %d\n", i, info.players[i].start_x);
+	
+	for (int i = 0; i < p4.datasize; i++) 
+		printf("Starty player[%d]: %d\n", i, info.players[i].start_y);
+	
+	for (int i = 0; i < p4.datasize; i++) 
+		printf("dir player[%d]: %d\n", i, info.players[i].start_direction);
+
+	for (int i = 0; i < p4.datasize; i++) 
+		printf("Startx player[%d]: %s\n", i, info.players[i].player_name);
 
     shutdown(SockFD, SHUT_RDWR);
     close(SockFD);
