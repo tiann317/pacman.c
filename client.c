@@ -7,14 +7,21 @@
 #define lheight 15
 #define lwidth 20
 #define PORT 8080
-#define PLAYERNAME_LEN
+#define PLAYERNAME_LEN 256
 
 typedef struct player {
   uint32_t start_x;
   uint32_t start_y;
   uint32_t start_direction;
-  uint8_t player_name[PLAYERNAME_LEN];
+  uint32_t player_name_len;
+  uint8_t* player_name;
 } Player;
+
+typedef struct Info {
+	uint32_t frame_timeout;
+	uint32_t pl_count;
+	Player* players;
+} Info;
 
 typedef struct Package {
     uint32_t magic;
@@ -26,7 +33,6 @@ Package p1;
 Package p2;
 Package p3;
 Package p4;
-Package p5;
 
 int main(void) { 
 	char map[lheight][lwidth];
@@ -89,33 +95,34 @@ int main(void) {
 	write(SockFD, &p3, sizeof(p3));
 
 	read(SockFD, &p4, sizeof(p4));
+	Info *p = malloc(p4.datasize);
+	if (p == NULL) {
+		perror("malloc 1");
+		exit(1);
+	}
 
-	printf("magic %x\n", p4.magic);
-	printf("ptype %d\n", p4.ptype);	
-	printf("amount of players %d\n", p4.datasize);
 
-	typedef struct Info {
-		uint32_t frame_timeout;
-		uint32_t pl_count;
-		Player players[p4.datasize];
-	} Info;
+	p->players = malloc(sizeof(Info) * p->pl_count);
+	if (p->players == NULL) {
+		perror("malloc 2");
+		exit(2);
+	}
 
-	Info info;
-	read(SockFD, &p5, sizeof(p5));
-	read(SockFD, &info, p5.datasize);
-	printf("FPS %d\n", info.frame_timeout);
-	for (int i = 0; i < p4.datasize; i++) 
-		printf("Startx player[%d]: %d\n", i, info.players[i].start_x);
+
+	for (size_t i = 0; i < p->pl_count; i++) {
+		p->players[i].player_name = malloc(p->players[i].player_name_len);
+		if (p->players[i].player_name == NULL) {
+			perror("malloc i");
+			exit(3);		
+		}
+	}
+
+
+	read(SockFD, p, sizeof(p));
+	printf("pl cnt %d\n", p->pl_count);
+	for (size_t i = 0; i < p->pl_count; i++)
+		printf("player name: %s\n", p->players[i].player_name);
 	
-	for (int i = 0; i < p4.datasize; i++) 
-		printf("Starty player[%d]: %d\n", i, info.players[i].start_y);
-	
-	for (int i = 0; i < p4.datasize; i++) 
-		printf("dir player[%d]: %d\n", i, info.players[i].start_direction);
-
-	for (int i = 0; i < p4.datasize; i++) 
-		printf("Startx player[%d]: %s\n", i, info.players[i].player_name);
-
     shutdown(SockFD, SHUT_RDWR);
     close(SockFD);
     return 0;
