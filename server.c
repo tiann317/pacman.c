@@ -2,10 +2,21 @@
 //	wall = 0xff
 //	food = 0xaa
 //	player = 0x22
+//TODO: async I/O poll/select to hancle multiple FDs
 //TODO: implement package 0x00 (client press button)
-//TODO: implement package 0xffffffff (server broadcasts each client's movements 
-//to others)
-
+//TODO: implement package 0xffffffff (server broadcasts
+// each client's movements to others)
+//
+//fact: we pass amount of players and an array of structs
+//			which max_index is the amount of players
+//
+//question 1: how to pass this in a single struct Info
+//
+//question 2: should all this structs be trnsferred in a
+//			single struct Message.
+//
+//question 3: if so how should we handle the receivers
+//			catchcng and handling the structs correctly
 #include <stdio.h>
 #include <unistd.h>
 #include <arpa/inet.h>
@@ -22,7 +33,7 @@
 #define lwidth 20
 #define FPS 70000
 
-char playername[] = "Petya";
+char* playername = "Petya";
 int sockFD;
 
 typedef struct player {
@@ -30,16 +41,14 @@ typedef struct player {
   uint32_t start_y;
   uint32_t start_direction;
   uint32_t player_name_len;
-  uint8_t player_name[];
+  uint8_t *player_name;
 } Player;
 
 typedef struct Info {
 	uint32_t frame_timeout;
 	uint32_t pl_count;
-	Player players[PLAYER_COUNT];
+	Player *players;
 } Info;
-
-Info info;
 
 typedef struct package {
     uint32_t magic;
@@ -51,7 +60,6 @@ Package p1;
 Package p2;
 Package p3;
 Package p4;
-Package p5;
 
 void sigint_handler(int sig) {
 	puts("exiting...");
@@ -134,49 +142,47 @@ int main(void)
 	write(clientFD, &arr1, p2.datasize);
 	read(clientFD, &p3, sizeof(p3));
 
+	char *playernameD = "Dasha";
+	char *playernameV = "Vasya";
+	char *playernameM = "Masha";
+
+	Info *ptr = malloc(sizeof(Info));
+	ptr->players = malloc(sizeof(Player)*PLAYER_COUNT);
+	ptr->players[0].player_name = malloc(sizeof(playername));
+	ptr->players[1].player_name = malloc(sizeof(playernameM));
+	ptr->players[2].player_name = malloc(sizeof(playernameV));
+	ptr->players[3].player_name = malloc(sizeof(playernameD));
+
+	ptr->players[0].player_name = playername;
+	ptr->players[1].player_name = playernameM;
+	ptr->players[2].player_name = playernameV;
+	ptr->players[3].player_name = playernameD;
+
+	ptr->players[0].player_name_len = sizeof(playername);
+	ptr->players[1].player_name_len = sizeof(playernameM);
+	ptr->players[2].player_name_len = sizeof(playernameV);
+	ptr->players[3].player_name_len = sizeof(playernameD);
+
+	for (int i = 0; i < 4; i++)
+	ptr->players[i].start_direction = 1;
+	for (int i = 0; i < 4; i++)
+	ptr->players[i].start_x = 23;
+	for (int i = 0; i < 4; i++)
+	ptr->players[i].start_y = 12;
+
+	ptr->frame_timeout = FPS;
+	ptr->pl_count = PLAYER_COUNT;
+
+	for (int i = 0; i < PLAYER_COUNT; i++)
+	printf("name %s\n", ptr->players[i].player_name);
+
+	printf("number of players %d\n", ptr->pl_count);
+
 	p4.magic = 0xabcdfe01;
 	p4.ptype = 0x20;
-	p4.datasize = PLAYER_COUNT;
+	p4.datasize = sizeof(Info);
 	write(clientFD, &p4, sizeof(p4));
-
-	char playernameD[] = "Dasha";
-	char playernameV[] = "Vasya";
-	char playernameM[] = "Masha";
-
-	strcpy(info.players[0].player_name, playername);
-	strcpy(info.players[1].player_name, playernameM);
-	strcpy(info.players[2].player_name, playernameV);
-	strcpy(info.players[3].player_name, playernameD);
-
-	info.players[0].player_name_len = sizeof(playername);
-	info.players[1].player_name_len = sizeof(playernameM);
-	info.players[2].player_name_len = sizeof(playernameV);
-	info.players[3].player_name_len = sizeof(playernameD);
-
-	info.players[0].start_direction = 2;
-	info.players[1].start_direction = 3;
-	info.players[2].start_direction = 1;
-	info.players[3].start_direction = 1;
-
-	info.players[0].start_x = 12;
-	info.players[1].start_x = 32;
-	info.players[2].start_x = 14;
-	info.players[3].start_x = 35;
-
-	info.players[0].start_y = 3;
-	info.players[1].start_y = 6;
-	info.players[2].start_y = 29;
-	info.players[3].start_y = 32;
-
-	info.frame_timeout = FPS;
-	info.pl_count = PLAYER_COUNT;
-
-	p5.magic = 0xabcdfe01;
-	p5.ptype = 0x20;
-	p5.datasize = sizeof(info);
-	write(clientFD, &p5, sizeof(p5));
-	write(clientFD, &info, p5.datasize);
-
+	write(clientFD, ptr, sizeof(ptr));
 
 	close(clientFD);
 	close(sockFD);
