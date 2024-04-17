@@ -23,19 +23,19 @@ typedef struct player {
   uint32_t start_direction;
   uint32_t player_name_len;
   uint8_t *player_name;
-} Player;
+} __attribute__((packed)) Player;
 
 typedef struct Info {
 	uint32_t frame_timeout;
 	uint32_t pl_count;
 	Player *players;
-} Info;
+} __attribute__((packed)) Info;
 
 typedef struct package {
     uint32_t magic;
     uint32_t ptype;
     uint32_t datasize;
-} Package;
+} __attribute__((packed)) Package;
 
 Package p1;
 Package p2;
