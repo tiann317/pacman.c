@@ -1,22 +1,3 @@
-//TODO: fix the map representation where
-//	wall = 0xff
-//	food = 0xaa
-//	player = 0x22
-//TODO: async I/O poll/select to hancle multiple FDs
-//TODO: implement package 0x00 (client press button)
-//TODO: implement package 0xffffffff (server broadcasts
-// each client's movements to others)
-//
-//fact: we pass amount of players and an array of structs
-//			which max_index is the amount of players
-//
-//question 1: how to pass this in a single struct Info
-//
-//question 2: should all this structs be trnsferred in a
-//			single struct Message.
-//
-//question 3: if so how should we handle the receivers
-//			catchcng and handling the structs correctly
 #include <stdio.h>
 #include <unistd.h>
 #include <arpa/inet.h>
@@ -69,24 +50,6 @@ void sigint_handler(int sig) {
 
 int main(void) 
 {
-
-	char arr1[lheight][lwidth] = {
-    	{'.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.'},
-		{'#','#','#','#','#','#','#','#','#','#','.','#','#','#','#','#','#','#','#','#'},
-    	{'#','#','#','#','#','#','#','#','#','#','.','#','#','#','#','#','#','#','#','#'},
-    	{'#','#','#','#','#','#','#','#','#','#','.','#','#','#','#','#','#','#','#','#'},
-    	{'#','#','#','#','#','#','#','#','#','#','.','.','.','.','#','#','#','#','#','#'},
-    	{'#','#','#','#','#','#','#','#','#','#','.','#','#','#','#','#','#','#','#','#'},
-    	{'#','#','#','#','#','#','#','#','#','#','.','#','#','#','#','#','#','#','#','#'},
-    	{'#','.','.','.','.','.','.','.','.','.','o','.','.','.','.','.','.','.','.','.'},
-    	{'#','#','#','#','.','#','#','#','#','#','.','#','#','#','#','.','#','#','#','#'},
-    	{'#','#','#','#','.','#','#','#','#','#','.','#','#','#','#','.','#','#','#','#'},
-    	{'#','#','#','#','.','#','#','#','#','#','.','#','#','#','#','.','#','#','#','#'},
-    	{'#','#','#','#','.','#','#','#','#','#','.','#','#','#','#','.','#','#','#','#'},
-    	{'#','#','#','#','.','#','#','#','#','#','.','#','#','#','#','.','#','#','#','#'},
-    	{'.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.'},
-    	{'.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.','.'},
-	};
 	signal(SIGINT, sigint_handler);
 	sockFD = socket(AF_INET, SOCK_STREAM, 0);
 	if (sockFD < 0) {
@@ -128,11 +91,9 @@ int main(void)
 		close(sockFD);
 		exit(1);
 	}
-
-	read(clientFD, &p1, sizeof(p1));
+/*	read(clientFD, &p1, sizeof(p1));
 	char name[PLAYERNAME_LEN];
 	read(clientFD, &name, p1.datasize);
-	printf("%s", name);
 
 	p2.magic = 0xabcdfe01;
 	p2.ptype = 0x10;
@@ -140,28 +101,46 @@ int main(void)
 
 	write(clientFD, &p2, sizeof(p2));
 	write(clientFD, &arr1, p2.datasize);
-	read(clientFD, &p3, sizeof(p3));
+	read(clientFD, &p3, sizeof(p3));*/
+
 
 	char *playernameD = "Dasha";
 	char *playernameV = "Vasya";
 	char *playernameM = "Masha";
 
 	Info *ptr = malloc(sizeof(Info));
+	if (ptr == NULL) {
+		perror("malloc 1");
+		exit(1);
+	}
+
 	ptr->players = malloc(sizeof(Player)*PLAYER_COUNT);
-	ptr->players[0].player_name = malloc(sizeof(playername));
-	ptr->players[1].player_name = malloc(sizeof(playernameM));
-	ptr->players[2].player_name = malloc(sizeof(playernameV));
-	ptr->players[3].player_name = malloc(sizeof(playernameD));
+	if (ptr->players == NULL) {
+		perror("malloc 2");
+		exit(2);
+	}
 
-	ptr->players[0].player_name = playername;
-	ptr->players[1].player_name = playernameM;
-	ptr->players[2].player_name = playernameV;
-	ptr->players[3].player_name = playernameD;
+	ptr->players[0].player_name_len = strlen(playername) + 1;
+	ptr->players[1].player_name_len = strlen(playernameM) + 1;
+	ptr->players[2].player_name_len = strlen(playernameV) + 1;
+	ptr->players[3].player_name_len = strlen(playernameD) + 1;
 
-	ptr->players[0].player_name_len = sizeof(playername);
-	ptr->players[1].player_name_len = sizeof(playernameM);
-	ptr->players[2].player_name_len = sizeof(playernameV);
-	ptr->players[3].player_name_len = sizeof(playernameD);
+	ptr->players[0].player_name = malloc(strlen(playername) + 1);
+	ptr->players[1].player_name = malloc(strlen(playernameM) + 1);
+	ptr->players[2].player_name = malloc(strlen(playernameV) + 1);
+	ptr->players[3].player_name = malloc(strlen(playernameD) + 1);
+
+	for (int i = 0; i < PLAYER_COUNT; i++) {
+		if (ptr->players[i].player_name == NULL) {
+			perror("malloc i");
+			exit(-1);
+		}
+	}
+
+	strcpy(ptr->players[0].player_name, playername);
+	strcpy(ptr->players[1].player_name, playernameM);
+	strcpy(ptr->players[2].player_name, playernameV);
+	strcpy(ptr->players[3].player_name, playernameD);
 
 	for (int i = 0; i < 4; i++)
 	ptr->players[i].start_direction = 1;
@@ -173,16 +152,21 @@ int main(void)
 	ptr->frame_timeout = FPS;
 	ptr->pl_count = PLAYER_COUNT;
 
-	for (int i = 0; i < PLAYER_COUNT; i++)
-	printf("name %s\n", ptr->players[i].player_name);
-
-	printf("number of players %d\n", ptr->pl_count);
-
 	p4.magic = 0xabcdfe01;
 	p4.ptype = 0x20;
 	p4.datasize = sizeof(Info);
 	write(clientFD, &p4, sizeof(p4));
-	write(clientFD, ptr, sizeof(ptr));
+	write(clientFD, ptr, p4.datasize);
+
+	printf("Player 0 name length: %d\n", ptr->players[0].player_name_len);
+	printf("Player 1 name length: %d\n", ptr->players[1].player_name_len);
+	printf("Player 2 name length: %d\n", ptr->players[2].player_name_len);
+	printf("Player 3 name length: %d\n", ptr->players[3].player_name_len);
+
+	printf("Player 0 name: %s\n", ptr->players[0].player_name);
+	printf("Player 1 name: %s\n", ptr->players[1].player_name);
+	printf("Player 2 name: %s\n", ptr->players[2].player_name);
+	printf("Player 3 name: %s\n", ptr->players[3].player_name);
 
 	close(clientFD);
 	close(sockFD);
