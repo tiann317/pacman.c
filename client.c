@@ -15,19 +15,19 @@ typedef struct player {
   uint32_t start_direction;
   uint32_t player_name_len;
   uint8_t* player_name;
-} Player;
+} __attribute__((packed)) Player;
 
 typedef struct Info {
 	uint32_t frame_timeout;
 	uint32_t pl_count;
 	Player* players;
-} Info;
+} __attribute__((packed)) Info;
 
 typedef struct Package {
     uint32_t magic;
     uint32_t ptype;
     uint32_t datasize;
-} Package;
+} __attribute__((packed)) Package;
 
 Package p1;
 Package p2;
@@ -35,7 +35,7 @@ Package p3;
 Package p4;
 
 int main(void) { 
-	char map[lheight][lwidth];
+//	char map[lheight][lwidth];
 
 	int SockFD = socket(AF_INET, SOCK_STREAM, 0); 
 	if (SockFD == -1) {
@@ -63,8 +63,7 @@ int main(void) {
 	}
 
 
-
-	char playername[] = "Vasya";
+/*	char playername[] = "Vasya";
 	p1.magic = 0xabcdfe01;
     p1.ptype = 0x01;
     p1.datasize = sizeof(playername);
@@ -87,41 +86,53 @@ int main(void) {
             printf("%2c", map[i][j]);            
         }
         printf("\n");
-    }
+    }*/
+
 
 	p3.magic = 0xabcdfe01;
     p3.ptype = 0x02;
     p3.datasize = 0;
 	write(SockFD, &p3, sizeof(p3));
 
-	read(SockFD, &p4, sizeof(p4));
-	Info *p = malloc(p4.datasize);
+	Info *p = malloc(sizeof(Info));
 	if (p == NULL) {
-		perror("malloc 1");
+		perror("malloc info");
 		exit(1);
 	}
-
-
-	p->players = malloc(sizeof(Info) * p->pl_count);
-	if (p->players == NULL) {
-		perror("malloc 2");
-		exit(2);
+	
+	if (read(SockFD, p, sizeof(Info)) < sizeof(Info)) {
+    	perror("read Info struct");
+    	exit(1);
 	}
 
+	p->players = malloc(sizeof(Player) * p->pl_count);
+	if (p->players == NULL) {
+		perror("malloc players");
+		exit(3);
+	}
 
 	for (size_t i = 0; i < p->pl_count; i++) {
+
+    	if (read(SockFD, &(p->players[i].player_name_len), sizeof(uint32_t)) < sizeof(uint32_t)) {
+        	perror("read player_name_len");
+       		exit(4);
+    	}
+		printf("Player %ld name length: %d\n", i, p->players[i].player_name_len);
+		
 		p->players[i].player_name = malloc(p->players[i].player_name_len);
 		if (p->players[i].player_name == NULL) {
-			perror("malloc i");
-			exit(3);		
-		}
+			perror("malloc playername's");
+			exit(5);		
+		}	
+
+   		if (read(SockFD, p->players[i].player_name, p->players[i].player_name_len) < p->players[i].player_name_len) {
+        	perror("read player_name");
+        	exit(5);
+    	}
+   		printf("Player %ld name: %s\n", i, p->players[i].player_name);
 	}
+    	
 
-
-	read(SockFD, p, sizeof(p));
-	printf("pl cnt %d\n", p->pl_count);
-	for (size_t i = 0; i < p->pl_count; i++)
-		printf("player name: %s\n", p->players[i].player_name);
 	
     shutdown(SockFD, SHUT_RDWR);
     close(SockFD);
