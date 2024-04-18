@@ -10,17 +10,17 @@
 #define PLAYERNAME_LEN 256
 
 typedef struct player {
-  uint32_t start_x;
-  uint32_t start_y;
-  uint32_t start_direction;
-  uint32_t player_name_len;
-  uint8_t* player_name;
+	uint32_t start_x;
+	uint32_t start_y;
+	uint32_t start_direction;
+	uint8_t* player_name;
+	uint32_t player_name_len;
 } __attribute__((packed)) Player;
 
 typedef struct Info {
 	uint32_t frame_timeout;
+	Player *players;
 	uint32_t pl_count;
-	Player* players;
 } __attribute__((packed)) Info;
 
 typedef struct Package {
