@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <signal.h>
 #include <string.h>
+#include <pthread.h>
 #define PTYPE_S 0x00
 #define PTYPE_B 0xffffffff
 #define MAGIC 0xabcdfe01
@@ -22,6 +23,13 @@
 #define FPS 70000
 
 int sockFD;
+
+enum MOVEMENTS {
+	UP,		//0
+	RIGHT,	//1
+	DOWN,	//2
+	LEFT,	//3
+};
 
 typedef struct player {
 	uint32_t start_x;
@@ -48,6 +56,7 @@ Package p2;
 Package p3;
 Package p4;
 Package p5;
+Package p6;
 
 void sigint_handler(int sig) {
 	puts("exiting...");
@@ -55,53 +64,30 @@ void sigint_handler(int sig) {
 	exit(0);
 }
 
-static void genarr1(char arr[lheight][lwidth]) {
-    for (int i = 0; i < lheight; i++) {
-        for (int j = 0; j < lwidth; j++) {
-            arr[i][j] = rand()%2;
-        }
-    }
-
-    int wall_counter = 0;
-    int offset_i, offset_j;
-    
-    for (int i = 0; i < lheight - 1; i++) {
-        for (int j = 0; j < lwidth - 1; j++) {
-            
-            for (int k = i; k < i+3; k++) {
-                for (int m = j; m < j+3; m++) {
-                    if (arr[k][m] == 1)
-                    wall_counter++;
-                }
-            }
-            
-            while (wall_counter > 3) {
-                offset_i = rand()%3;
-                offset_j = rand()%3;
-                if (arr[i + offset_i][j + offset_j] == 1) {
-                    arr[i + offset_i][j + offset_j] = 0;
-                    wall_counter--;
-                } else {
-                    continue;
-                }                    
-            }
-            wall_counter = 0;
-        }
-    }
-
-        for (int i = 0; i < lheight; i++) {
-        for (int j = 0; j < lwidth; j++) {
-            if (arr[i][j] == 0) {
-                arr[i][j] = '.';
-            } else {
-                arr[i][j] = '#';
-            }
-        }
-    }
+uint8_t button;
+void *output(int* clientFD) {
+	int cd = *(int *)clientFD;
+	for (;;) {
+		uint32_t magic;
+		uint32_t ptype;
+		uint32_t datasize;
+		if (!read(cd, &magic, sizeof(magic))) {
+			perror("Read mag");
+			exit(1);
+		}
+		if(!read(cd, &ptype, sizeof(ptype))) {
+			perror("Read ptype");
+			exit(1);
+		}
+		read(cd, &datasize, sizeof(datasize));
+		read(cd, &button, datasize);		
+	}
+	return NULL;
 }
 
 int main(void) 
 {
+
 	signal(SIGINT, sigint_handler);
 	sockFD = socket(AF_INET, SOCK_STREAM, 0);
 	if (sockFD < 0) {
@@ -143,18 +129,17 @@ int main(void)
 		close(sockFD);
 		exit(1);
 	}
-	read(clientFD, &p1, sizeof(p1));
+/*	read(clientFD, &p1, sizeof(p1));
 	char name[PLAYERNAME_LEN];
 	read(clientFD, &name, p1.datasize);
-	char arr1[lheight][lwidth];
-	genarr1(arr1);
-	p2.magic = MAGIC;
+
+	p2.magic = 0xabcdfe01;
 	p2.ptype = 0x10;
 	p2.datasize = sizeof(arr1);
 
 	write(clientFD, &p2, sizeof(p2));
 	write(clientFD, &arr1, p2.datasize);
-	read(clientFD, &p3, sizeof(p3));
+	read(clientFD, &p3, sizeof(p3));*/
 
 	char *playername = "Petya";
 	char *playernameD = "Dasha";
@@ -208,7 +193,7 @@ int main(void)
 	for (int i = 0; i < 4; i++)
 	ptr->players[i].start_y = 12;
 
-	p4.magic = MAGIC;
+	p4.magic = 0xabcdfe01;
 	p4.ptype = 0x20;
 	p4.datasize = sizeof(Info);
 	write(clientFD, &p4, sizeof(p4));
@@ -221,28 +206,29 @@ int main(void)
 	write(clientFD, &p5, sizeof(p5));
 	write(clientFD, ptr->players, p5.datasize);
 
-	p5.magic = MAGIC;
+	p5.magic = 0xabcdfe01;
 	p5.ptype = 0x20;
 	p5.datasize = sizeof(Player) * PLAYER_COUNT;
 	
 	for (int i = 0; i < PLAYER_COUNT; i++) {
 		write(clientFD, ptr->players[i].player_name, ptr->players[i].player_name_len);
 	}
-/*	for (;;) {
-		uint32_t magic;
-		uint32_t ptype;
-		uint32_t datasize;
-		uint8_t button;
-		read(clientFD, &magic, sizeof(magic));
-		if (magic != MAGIC) return 1;
-		read(clientFD, &ptype, sizeof(ptype));
-		if (ptype != PTYPE_S) return 1;
-		read(clientFD, &datasize, sizeof(datasize));
-		read(clientFD, &button, datasize);	
-		printf("dir from client %d\n", button);
-	}*/
 
-
+	pthread_t pid;
+    void *retval;
+    pthread_create(&pid, NULL, output, &clientFD);
+	while(true) {
+		switch (button) {
+		case 0:
+			printf("w\n");
+		case 1:
+			printf("d\n");
+		case 2:
+			printf("s\n");
+		case 3:
+			printf("a\n");
+		}
+	}
 	close(clientFD);
 	close(sockFD);
 	

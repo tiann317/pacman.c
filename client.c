@@ -4,6 +4,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#include <pthread.h>
 #define lheight 15
 #define lwidth 20
 #define PORT 8080
@@ -57,8 +58,22 @@ int get_dir(void) {
 	}
 }
 
+void *input(int* SockFD) {
+	int sd = *(int *)SockFD;
+	for (;;) {
+		Package p6;
+		p6.magic = 0xabcdfe01;
+		p6.ptype = 0x00;
+		p6.datasize = 1;
+		write(sd, &p6, sizeof(p6));
+		uint8_t dir = get_dir();
+		write(sd, &dir, p6.datasize);		
+	}
+	return NULL;
+}
+
 int main(void) { 
-	char map[lheight][lwidth];
+//	char map[lheight][lwidth];
 
 	int SockFD = socket(AF_INET, SOCK_STREAM, 0); 
 	if (SockFD == -1) {
@@ -86,7 +101,7 @@ int main(void) {
 	}
 
 
-	char playername[] = "Vasya";
+/*	char playername[] = "Vasya";
 	p1.magic = 0xabcdfe01;
     p1.ptype = 0x01;
     p1.datasize = sizeof(playername);
@@ -109,12 +124,12 @@ int main(void) {
             printf("%2c", map[i][j]);            
         }
         printf("\n");
-    }
+    }*/
 
-	p3.magic = 0xabcdfe01;
+/*	p3.magic = 0xabcdfe01;
     p3.ptype = 0x02;
     p3.datasize = 0;
-	write(SockFD, &p3, sizeof(p3));
+	write(SockFD, &p3, sizeof(p3));*/
 
 
 	Info *p = malloc(sizeof(Info));
@@ -146,16 +161,9 @@ int main(void) {
 	for (size_t i = 0; i < p->pl_count; i++)
 		printf("name[%ld]: %d\n", i, p->players[i].start_x);
 
-	/*	for (;;) {
-		Package p6;
-		p6.magic = 0xabcdfe01;
-		p6.ptype = 0x00;
-		p6.datasize = 1;
-		write(SockFD, &p6, sizeof(p6));
-		uint8_t dir = get_dir();
-		write(SockFD, &dir, p6.datasize);
-	}*/
-
+	pthread_t pid;
+    void *retval;
+    pthread_create(&pid, NULL, input, &SockFD);
 
     shutdown(SockFD, SHUT_RDWR);
     close(SockFD);
