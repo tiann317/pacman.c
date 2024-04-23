@@ -1,86 +1,30 @@
-//TODO: genarr should generate player position as well
-//TODO: genarr should handle the wall by generating 
-//      cross-like corridors
 //TODO: fix the new map representation with values
-//  wall = 0xff
-//	food = 0xaa
-//	player = 0x22
+
 #include <ncurses.h>
 #include <pthread.h>
 #include <unistd.h> 
 #include <stdlib.h> 
 #include <time.h>
 
-#define right 'd'
-#define left 'a'
-#define up 'w'
-#define down 's'
-#define quit 'q'
+#define right   'd'
+#define left    'a'
+#define up      'w'
+#define down    's'
+#define quit    'q'
 
 #define FPS_TIMEOUT 70000
-#define height 30
-#define width 40
-#define lheight 15
-#define lwidth 20
+#define height      30
+#define width       40
+#define lheight     15
+#define lwidth      20
+#define Wall        0xff
+#define	Food        0xaa
+#define Player      0x22
 
 chtype pac_head = 'o';
 chtype wall = '#';
 chtype food = '.';
 chtype empt = ' ';
-
-uint8_t dir8t;
-const int name_len = 256;
-unsigned int score = 0;
-int dir_x;
-char arr1[lheight][lwidth];
-char arr2[lheight][lwidth];
-char arr3[lheight][lwidth];
-char arr4[lheight][lwidth];
-
-static void genarr1(char arr[lheight][lwidth]) {
-    for (int i = 0; i < lheight; i++) {
-        for (int j = 0; j < lwidth; j++) {
-            arr[i][j] = rand()%2;
-        }
-    }
-
-    int wall_counter = 0;
-    int offset_i, offset_j;
-    
-    for (int i = 0; i < lheight - 1; i++) {
-        for (int j = 0; j < lwidth - 1; j++) {
-            
-            for (int k = i; k < i+3; k++) {
-                for (int m = j; m < j+3; m++) {
-                    if (arr[k][m] == 1)
-                    wall_counter++;
-                }
-            }
-            
-            while (wall_counter > 3) {
-                offset_i = rand()%3;
-                offset_j = rand()%3;
-                if (arr[i + offset_i][j + offset_j] == 1) {
-                    arr[i + offset_i][j + offset_j] = 0;
-                    wall_counter--;
-                } else {
-                    continue;
-                }                    
-            }
-            wall_counter = 0;
-        }
-    }
-
-        for (int i = 0; i < lheight; i++) {
-        for (int j = 0; j < lwidth; j++) {
-            if (arr[i][j] == 0) {
-                arr[i][j] = '.';
-            } else {
-                arr[i][j] = '#';
-            }
-        }
-    }
-}
 
 typedef struct point {
     int x;
@@ -97,6 +41,72 @@ Point dsplhead;         //displayble head is the logical head but with offsets
 Boundary fullscr;
 Boundary boundary;
 Boundary quarter;
+
+uint8_t dir8t;
+unsigned int score = 0;
+int dir_x;
+char arr1[lheight][lwidth];
+char arr2[lheight][lwidth];
+char arr3[lheight][lwidth];
+char arr4[lheight][lwidth];
+
+static void gen_init_pos(char arr[lheight][lwidth]) {
+    for (int i = 0; i < lheight; i++) {
+        for (int j = 0; j < lwidth; j++) {
+            if (arr[i][j] == 0) {
+                loghead.x = j;
+                loghead.y = i;
+                break;
+            }
+        } break;
+    }
+}
+
+static void genarr1(char arr[lheight][lwidth]) {
+    for (int i = 0; i < lheight; i++) {
+        for (int j = 0; j < lwidth; j++) {
+            arr[i][j] = rand()%2;
+        }
+    }
+
+    int wall_counter = 0;
+    int offset_i, offset_j;
+    
+    for (int i = 0; i < lheight - 1; i++) {
+        for (int j = 0; j < lwidth - 1; j++) {  
+            for (int k = i; k < i+3; k++) {
+                for (int m = j; m < j+3; m++) {
+                    if (arr[k][m] == 1 || arr[k][m] == 3)
+                    wall_counter++;
+                }
+            }
+            while (wall_counter > 3) {
+                offset_i = rand()%3;
+                offset_j = rand()%3;
+                if (arr[i + offset_i][j + offset_j] == 1) {
+                    arr[i + offset_i][j + offset_j] = 0;
+                    wall_counter--;
+                } else {
+                    continue;
+                }                    
+            }
+            wall_counter = 0;
+        }
+    }
+
+    gen_init_pos(arr);
+    for (int i = 0; i < lheight; i++) {
+        for (int j = 0; j < lwidth; j++) {
+            if (arr[i][j] == 0) {
+                arr[i][j] = '.';
+            } else if (arr[i][j] == 2) {
+                arr[i][j] = 'o';
+            } else {
+                arr[i][j] = '#';                
+            }
+        }
+    }
+}
 
 static void logic_quarter(char arr[height][width]) {
     for (int i = 0; i < height; i++) {
@@ -155,9 +165,7 @@ int main(void) {
     quarter.min.y = boundary.min.y; 
     quarter.max.y = boundary.min.y + 15;
     quarter.max.x = boundary.min.x + 20;
-//  (i,j)   (i+1,j)     (i,j+1)     (i+1,j+1)
-//          (i-1,j)     (i,j-1)     (j-1,j-1)
-//                                              (i-1,j+1)   (i+1,j-1) 
+
     genarr1(arr1);
     for (int i = 0; i < lheight; i++) {
         for (int j = 0; j < lwidth; j++) 
@@ -171,7 +179,6 @@ int main(void) {
         for (int j = 0; j < lwidth; j++) 
         arr4[i][j] = arr1[lheight - 1 - i][lwidth - 1 - j];        
     }     
-
     char map[height][width];
     for (int i = 0; i < height/2; i++) {
         for (int j = 0; j < width/2; j++)
@@ -189,12 +196,8 @@ int main(void) {
         for (int j = 0; j < width/2; j++)
         map[height/2 + i][ width/2 + j] = arr4[i][j];
     }
-
-    loghead.x = lwidth/2;
-    loghead.y = lheight/2;
     dsplhead.x = loghead.x + quarter.min.x;
     dsplhead.y = loghead.y + quarter.min.y;
-    
     while(TRUE) {
         logic_quarter(map);
         if (mvprintw(0, 0, "Score: %d", dir8t) == ERR)
