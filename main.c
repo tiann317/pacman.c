@@ -49,6 +49,7 @@ char arr1[lheight][lwidth];
 char arr2[lheight][lwidth];
 char arr3[lheight][lwidth];
 char arr4[lheight][lwidth];
+char map[height][width];
 
 static void gen_init_pos(char arr[lheight][lwidth]) {
     for (int i = 0; i < lheight; i++) {
@@ -80,7 +81,7 @@ static void genarr1(char arr[lheight][lwidth]) {
                     wall_counter++;
                 }
             }
-            while (wall_counter > 3) {
+            while (wall_counter > 1) {
                 offset_i = rand()%3;
                 offset_j = rand()%3;
                 if (arr[i + offset_i][j + offset_j] == 1) {
@@ -145,28 +146,9 @@ void *input(void *none) {
     }  
 }
 
-int main(void) {
-    srand(time(NULL));
-    initscr();
-    noecho();
-    keypad(stdscr, TRUE);
-    pthread_t pid;
-    void *retval;
-    pthread_create(&pid, NULL, input, NULL);
-    bool done = FALSE;
-    getmaxyx(stdscr, fullscr.max.y, fullscr.max.x); 
-
-    boundary.max.x = fullscr.max.x/2 + 20;
-    boundary.min.x = fullscr.max.x/2 - 20;
-    boundary.max.y = fullscr.max.y/2 + 15;
-    boundary.min.y = fullscr.max.y/2 - 15;
-
-    quarter.min.x = boundary.min.x;
-    quarter.min.y = boundary.min.y; 
-    quarter.max.y = boundary.min.y + 15;
-    quarter.max.x = boundary.min.x + 20;
-
-    genarr1(arr1);
+void gen_map(char arr1[lheight][lwidth],\
+ char arr2[lheight][lwidth], char arr3[lheight][lwidth],\
+  char arr4[lheight][lwidth], char map[height][width]) {
     for (int i = 0; i < lheight; i++) {
         for (int j = 0; j < lwidth; j++) 
         arr2[i][j] = arr1[i][lwidth - 1 - j];        
@@ -179,7 +161,6 @@ int main(void) {
         for (int j = 0; j < lwidth; j++) 
         arr4[i][j] = arr1[lheight - 1 - i][lwidth - 1 - j];        
     }     
-    char map[height][width];
     for (int i = 0; i < height/2; i++) {
         for (int j = 0; j < width/2; j++)
         map[i][j] = arr1[i][j];
@@ -196,8 +177,60 @@ int main(void) {
         for (int j = 0; j < width/2; j++)
         map[height/2 + i][ width/2 + j] = arr4[i][j];
     }
-    dsplhead.x = loghead.x + quarter.min.x;
-    dsplhead.y = loghead.y + quarter.min.y;
+}
+
+void init() {
+    initscr();
+    noecho();
+    keypad(stdscr, TRUE);
+    getmaxyx(stdscr, fullscr.max.y, fullscr.max.x); 
+
+    boundary.max.x = fullscr.max.x/2 + 20;
+    boundary.min.x = fullscr.max.x/2 - 20;
+    boundary.max.y = fullscr.max.y/2 + 15;
+    boundary.min.y = fullscr.max.y/2 - 15;
+
+    quarter.min.x = boundary.min.x;
+    quarter.min.y = boundary.min.y; 
+    quarter.max.y = boundary.min.y + 15;
+    quarter.max.x = boundary.min.x + 20;
+}
+
+void game_ends() {
+    bool FoodExists = FALSE;
+    for (int i = 0; i < height; i++) {
+        for (int j = 0; j < width; j++) {
+            if (map[i][j] == '.') {
+                FoodExists = TRUE;
+                continue;
+            }
+        }
+    }
+    if (FoodExists == FALSE) {
+        clear();
+        refresh();
+        if (mvprintw(fullscr.max.y/2, fullscr.max.x/2, "Game Over") == ERR) {
+            exit(ERR);
+        }
+        if (mvprintw(fullscr.max.y/2 + 1, fullscr.max.x/2, "Score: %d", score) == ERR) {
+            exit(ERR);
+        }
+        if (mvprintw(fullscr.max.y/2 + 2, fullscr.max.x/2 - 4, "Press 'q' to leave") == ERR) {
+            exit(ERR);
+        }
+        for(;;) {
+            if (dir_x == quit) {
+                endwin();
+                exit(1);
+            } else {
+                continue;
+            }
+        }
+    }
+}
+
+void render() {
+    bool done = FALSE;
     while(TRUE) {
         logic_quarter(map);
         if (mvprintw(0, 0, "Score: %d", dir8t) == ERR)
@@ -205,36 +238,7 @@ int main(void) {
         mvaddch(dsplhead.y, dsplhead.x, pac_head);
         refresh();
         mvaddch(dsplhead.y, dsplhead.x, ' ');
-        bool FoodExists = FALSE;
-        for (int i = 0; i < height; i++) {
-            for (int j = 0; j < width; j++) {
-                if (map[i][j] == '.') {
-                    FoodExists = TRUE;
-                    continue;
-                }
-            }
-        }
-        if (FoodExists == FALSE) {
-            clear();
-            refresh();
-            if (mvprintw(fullscr.max.y/2, fullscr.max.x/2, "Game Over") == ERR) {
-                exit(ERR);
-            }
-            if (mvprintw(fullscr.max.y/2 + 1, fullscr.max.x/2, "Score: %d", score) == ERR) {
-                exit(ERR);
-            }
-            if (mvprintw(fullscr.max.y/2 + 2, fullscr.max.x/2 - 4, "Press 'q' to leave") == ERR) {
-                exit(ERR);
-            }
-                for(;;) {
-                    if (dir_x == quit) {
-                        endwin();
-                        return 0;
-                    } else {
-                        continue;
-                    }
-                }
-        }
+        game_ends();
             switch (dir_x) {
             case down:
             case KEY_DOWN:
@@ -308,5 +312,17 @@ int main(void) {
         usleep(FPS_TIMEOUT);
     }      
     endwin();
+}
+
+int main(void) {
+    init();
+    genarr1(arr1);
+    gen_map(arr1, arr2, arr3, arr4, map);
+    dsplhead.x = loghead.x + quarter.min.x;
+    dsplhead.y = loghead.y + quarter.min.y;
+    pthread_t pid;
+    void *retval;
+    pthread_create(&pid, NULL, input, NULL);
+    render();
     return 0;
 }
