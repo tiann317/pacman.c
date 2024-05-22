@@ -6,6 +6,7 @@
 #include <arpa/inet.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/poll.h>
 #include <string.h>
 #include <time.h>
 
@@ -19,6 +20,7 @@
 #define lwidth              20
 
 int pl_count, score;
+char *name;                     //temporary storage for names -n
 int is_server = -1;                         
 int sd, cd;                           
 uint32_t fps;                  //global scope for client 
@@ -146,9 +148,9 @@ Info* client_connect(struct sockaddr_in addr) {
     Package connect;
 	connect.magic = 0xabcdfe01;
     connect.ptype = 0x01;
-    connect.datasize = strlen(pacmans[0].name) + 1;
+    connect.datasize = strlen(name) + 1;
 	write(sd, &connect, sizeof(connect));
-	write(sd, pacmans[0].name, connect.datasize);
+	write(sd, name, connect.datasize);
 
     Package getmap;
 	read(sd, &getmap, sizeof(getmap));
@@ -162,23 +164,18 @@ Info* client_connect(struct sockaddr_in addr) {
     client_ready.datasize = 0;
 	write(sd, &client_ready, sizeof(client_ready));
 
-	Info *p = malloc(sizeof(Info));
-    Package sg_info_cl;
-    if (!read(sd, &sg_info_cl, sizeof(sg_info_cl))) {
-    	perror("read struct info");
-    	exit(1);
-	}
-	if (!read(sd, p, sg_info_cl.datasize)) {
-    	perror("read Info struct");
-    	exit(1);
-	}
+    Package sg_info;                                //start game package header
+    read(sd, &sg_info, sizeof(sg_info));
+	
+	Info *p = malloc(sizeof(Info));                 
+    read(sd, p, sg_info.datasize);                  //start game package data
 	p->players = malloc(sizeof(Player) * p->pl_count);
 
     Package sg_players;
 	read(sd, &sg_players, sizeof(sg_players));
 	read(sd, p->players, sg_players.datasize);
 	
-	for (size_t i = 0; i < p->pl_count; i++) {
+	for (size_t i = 0; i < p->pl_count; ++i) {
 		p->players[i].player_name = malloc(p->players[i].player_name_len);
 		read(sd, p->players[i].player_name, p->players[i].player_name_len);		
 	}
@@ -216,7 +213,7 @@ Info* server_handler(struct sockaddr_in *addr) {
 		perror("bind");
 		exit(1);
 	} 
-
+    
 	if (listen(sd, 5) == -1) {
 		close(sd);
 		perror("listen");
@@ -224,23 +221,41 @@ Info* server_handler(struct sockaddr_in *addr) {
 	} else {
 		mvprintw(0, 0, "Server listening...\n");
 	}
+/* 
+    struct pollfd fds[MAX_PACMAN_COUNT + 3] = {0}; //stdin, stdout, stderr
+    fds[sd].fd = sd;
+    fds[sd].events = POLLIN;
+    int maxfd = sd;
+   while (done == FALSE) {
+        int ret = poll(&fds, maxfd + 1, -1);
+        if (fds[sd].events & POLLIN) {
+            cd = accept(sd, NULL, NULL);
+            fds[cd].fd = cd;
+            fds[cd].events = POLLIN;
+            if (cd > maxfd)
+                maxfd = cd;
+            if (--ret == 0)
+                continue;
+        }
+    }*/
+
 
 	cd = accept(sd, NULL, NULL);
 	if (cd < 0) {
 		perror("accept");
 		close(sd);
 		exit(1);
-	}
+	}       
 
     Package connect;
 	read(cd, &connect, sizeof(connect));
 	if (connect.datasize > PLAYERNAME_LEN)
         close(cd);
-    char name[PLAYERNAME_LEN];
-	read(cd, &name, connect.datasize);
-    if (strcmp(pacmans[0].name, name) == 0)
+    char tmpname[PLAYERNAME_LEN];
+	read(cd, &tmpname, connect.datasize);
+    if (strcmp(pacmans[0].name, tmpname) == 0)
         close(cd);
-    pacmans[1].name = name;
+    pacmans[1].name = tmpname;
 
     Package sendmap;
 	sendmap.magic = 0xabcdfe01;
@@ -298,7 +313,7 @@ Info* server_handler(struct sockaddr_in *addr) {
 	write(cd, &sg_players, sizeof(sg_players));
 	write(cd, ptr->players, sg_players.datasize);
 	
-	for (int i = 0; i < pl_count; i++) {
+	for (size_t i = 0; i < pl_count; ++i) {
 		write(cd, ptr->players[i].player_name, \
         ptr->players[i].player_name_len);
 	}
@@ -326,6 +341,11 @@ uint8_t transform_key(uint8_t key) {
 
 void server_input() {
     while (TRUE) {
+        Package key;
+        key.magic = 0xabcdfe01;
+        key.ptype = 0x00;
+        key.datasize = 1;
+        write(cd, &key, sizeof(key));        
         pacmans[0].direction = getch();
         pacmans[0].direction = transform_key(pacmans[0].direction);
         write(cd, &pacmans[0].direction, 1);
@@ -333,22 +353,33 @@ void server_input() {
 }
 
 void client_input() {
-    while (TRUE) {
-        pacmans[0].direction = getch();
-        pacmans[0].direction = transform_key(pacmans[0].direction);
-        write(sd, &pacmans[0].direction, 1);
+    while (TRUE) {  
+        Package key;  
+        key.magic = 0xabcdfe01;
+        key.ptype = 0x00;
+        key.datasize = 1;
+        write(sd, &key, sizeof(key));
+        pacmans[1].direction = getch();
+        pacmans[1].direction = transform_key(pacmans[1].direction);
+        write(sd, &pacmans[1].direction, 1);
     }
 }
 
 void client_keys() {
     while (TRUE) {
-        read(cd, &pacmans[1].direction, 1);
+        Package c_key;
+        read(cd, &c_key, sizeof(c_key));
+        if (c_key.ptype == 0x00)
+            read(cd, &pacmans[1].direction, 1);
     }
 }
 
 void server_keys() {
     while (TRUE) {
-        read(sd, &pacmans[1].direction, 1);
+        Package s_key;
+        read(sd, &s_key, sizeof(s_key));
+        if (s_key.ptype == 0x00)
+            read(sd, &pacmans[0].direction, 1);
     }
 }
 
@@ -442,7 +473,7 @@ void game_ends() {
     }
 }*/
 
-void move_player() {
+void move_player() {     
     for (size_t i = 0; i < pl_count; ++i) {
         mvaddch(pacmans[i].offset_coords.y, \
         pacmans[i].offset_coords.x, pacmans[i].head);
@@ -523,8 +554,11 @@ void move_player() {
             break;  
         }
     }
-    usleep(fps);        
+    usleep(fps);
 }
+   
+        
+
 
 void pack_playerdata(Info* data) {
     pl_count = data->pl_count;
@@ -539,7 +573,7 @@ void pack_playerdata(Info* data) {
         pacmans[i].direction = data->players[i].start_direction;
         pacmans[i].score = 0;
         pacmans[i].head = 'o';
-        pacmans[i].sd = sd;
+//        pacmans[i].sd = sd;
     }
 }
 
@@ -565,7 +599,7 @@ int main(int argc, char **argv) {
 	        case 'p': addr.sin_port = atoi(optarg); break; 
 	        case 'k': pl_count = atoi(optarg); break;
 	        case 'a': addr.sin_addr.s_addr = inet_addr(optarg); break;
-            case 'n': pacmans[0].name = optarg;
+            case 'n': name = optarg;
 	    }
     }
     pthread_t net_thread;
@@ -575,6 +609,7 @@ int main(int argc, char **argv) {
             init();
             genarr1(arr1);
             gen_map(arr1,arr2,arr3,arr4,map);
+            pacmans[0].name = name;
             Info *p = server_handler(&addr);
             pack_playerdata(p);
             pthread_create(&keyboard_thread, NULL, server_input, NULL);
@@ -594,6 +629,12 @@ int main(int argc, char **argv) {
 
     while (TRUE) {
         print_map(map);
+        mvprintw(1, 0, "name [0]: %s", pacmans[0].name);
+        mvprintw(2, 0, "name [1]: %s", pacmans[1].name);
+        mvprintw(3, 0, "x [0]: %d", pacmans[0].coords.x);
+        mvprintw(4, 0, "x [1]: %d", pacmans[1].coords.x);
+        mvprintw(5, 0, "y [0]: %d", pacmans[0].coords.y);
+        mvprintw(6, 0, "y [1]: %d", pacmans[1].coords.y); 
         if (done == FALSE) {
             move_player();          
         } else {
