@@ -20,16 +20,16 @@
 #define FPS_TIMEOUT         300000
 #define mgc                 0xabcdfe01
 
-int c_sid;                      //client self identification
+int self_id;                      //client self identification
 uint32_t fps;
 uint8_t temp_key;
 int pl_count, score;
 char *name;                     //temporary storage for names -n
-char *temp_name;                //temporary storage for package 0xffffffff
+char *name_checker;
 int is_server = -1;                         
 int sd, cd, maxfd, ret;                           
 int ready_clients;
-int cnt = 1;
+uint32_t pollhit;
 char arr1[lheight][lwidth] = {0};
 char arr2[lheight][lwidth] = {0};
 char arr3[lheight][lwidth] = {0};
@@ -140,124 +140,129 @@ uint8_t transform_key(uint8_t key) {
         case 4:
             return LEFT;
         case 113:
-            return QUIT; 
+            return QUIT;
+        default:
+            return key; 
     }
 }
 
 void set_dir(uint8_t key, size_t i) {
-        if (key == 'w' || key == 3) {
-            pacmans[i].direction = transform_key(key);
-        } else if (key == 's' || key == 2) {
-            pacmans[i].direction = transform_key(key);
-        } else if (key == 'a' || key == 5) {
-            pacmans[i].direction = transform_key(key);
-        } else if (key == 'd' || key == 4) {
-            pacmans[i].direction = transform_key(key);
-        } else if (key == 'q') {
-            pacmans[i].direction = transform_key(key);
+        if (key == UP) {
+            pacmans[i].direction = key;
+        } else if (key == DOWN) {
+            pacmans[i].direction = key;
+        } else if (key == LEFT) {
+            pacmans[i].direction = key;
+        } else if (key == RIGHT) {
+            pacmans[i].direction = key;
+        } else if (key == QUIT) {
+            pacmans[i].direction = key;
         }
 }
 
 void server_input() {
-    while (TRUE) {
-        Package key;
-        key.magic = mgc;
-        key.ptype = 0x00;
-        key.datasize = 1;
-        for (size_t i = 1; i < pl_count; ++i) 
-            write(pacmans[i].sd, &key, sizeof(key));
+    while (TRUE) { 
         temp_key = getch();
-        if (temp_key == pacmans[0].direction) {
-            break;
-        } else {
-            continue;
-        }
-        set_dir(temp_key, 0);
-        send_all(pacmans[0].direction);   
+        temp_key = transform_key(temp_key);
+        if (temp_key != pacmans[0].direction && \
+        (temp_key == UP || temp_key == DOWN || temp_key == RIGHT || temp_key == LEFT)) {
+            Package key;
+            key.magic = mgc;
+            key.ptype = 0x00;
+            key.datasize = 1;
+            set_dir(temp_key, 0);
+            for (size_t i = 1; i < pl_count; ++i) {
+                write(pacmans[i].sd, &key, sizeof(key));
+                write(pacmans[i].sd, pacmans[0].direction, 1);                
+            }
+        }     
+    }
+}
+
+void client_input() {
+    while (TRUE) { 
+        temp_key = getch();
+        temp_key = transform_key(temp_key);
+        if (temp_key != pacmans[self_id].direction && \
+        (temp_key == UP || temp_key == DOWN || temp_key == RIGHT || temp_key == LEFT)) {
+            Package key;
+            key.magic = mgc;
+            key.ptype = 0x00;
+            key.datasize = 1;
+            set_dir(temp_key, self_id);            
+            write(sd, &key, sizeof(key));
+            write(sd, pacmans[self_id].direction, 1);
+        }     
     }
 }
 
 void broadcast() {                      //server
     struct pollfd fds[MAX_PACMAN_COUNT] = {0};
-
+    for (size_t i = 1; i < pl_count; ++i) {
+        fds[i].fd = pacmans[i].sd;
+        fds[i].events = POLLOUT;
+    }
+    //pl_count includes server
     while (TRUE) {
-        for (size_t i = 1; i < pl_count; ++i) {
-            fds[i].fd = pacmans[i].sd;
-            fds[i].events = POLLIN;
-        }
-
-        ret = poll(&fds, pl_count, -1);
-        for (size_t i = 1; i < pl_count; ++i) {
-            if (fds[i].revents & POLLIN) {
-                Package cli_key;
-                read(pacmans[i].sd, &cli_key, sizeof(cli_key));
-                uint8_t key;
-                if (cli_key.magic == mgc && cli_key.ptype == 0x00) {
-                    read(pacmans[i].sd, &key, 1);
-                    pacmans[i].direction = key;
-                    send_all_with_exception(key, i);                 
-                }
+        ret = poll(&fds, pl_count, -1);  
+        if (ret != -1 && ret != 0) {
+            for (size_t i = 1; i < pl_count; ++i) {
+                if (fds[i].revents & POLLOUT) {
+                    fds[i].revents = 0;
+                    pollhit++;
+                    Package cli_key;
+                    read(pacmans[i].sd, &cli_key, sizeof(cli_key));
+                    if (cli_key.magic == mgc && cli_key.ptype == 0x00) {
+                        uint8_t key;
+                        read(pacmans[i].sd, &key, 1);
+                        pacmans[i].direction = key;
+                        send_all_with_exception(key, i);                 
+                    }
+                } 
             }
-        }
-    }
+        }        
+    }     
 }
-
-void client_input() {
-    while (TRUE) {
-        Package key;
-        key.magic = mgc;
-        key.ptype = 0x00;
-        key.datasize = 1;
-        write(sd, &key, sizeof(key));
-        temp_key = getch();
-        if (temp_key == pacmans[c_sid].direction) {
-            break;
-        } else {
-            continue;
-        }
-        set_dir(temp_key, 0);
-        write(sd, &pacmans[c_sid].direction, 1);   
-    }
-}
-
 //socket_keys - ready
 void socket_keys() {
     while (TRUE) {
-        Package s_key;
-        uint8_t c_key;
-        read(sd, &s_key, sizeof(s_key));
-        if (s_key.ptype == 0x00 && s_key.magic == mgc) {                    //servers key
-            read(sd, &c_key, 1);
-            pacmans[0].direction = c_key;
-        } else if (s_key.ptype == 0xffffffff && s_key.magic == mgc) {      //clients key broadcasted
-            read(sd, &c_key, 1);
+        Package serv_key;
+        uint8_t key;
+        read(sd, &serv_key, sizeof(serv_key));
+        if (serv_key.magic == mgc \
+        && serv_key.ptype == 0x00) {        
+            read(sd, &key, 1);
+            pacmans[0].direction = key;
+        } else if (serv_key.magic == mgc \
+        && serv_key.ptype == 0xffffffff) { 
+            read(sd, &key, 1);
             Package name;
             read(sd, &name, sizeof(name));
-            if (name.ptype == 0xffffffff && name.magic == mgc) {
+            if (name.magic == mgc && name.ptype == 0xffffffff) {
+                char temp_name[name.datasize];                //im here 28.05
                 read(sd, &temp_name, name.datasize);
-                for (size_t i = 0; i < pl_count; ++i) {
-                    if (strcmp(temp_name, pacmans[i].name) == 0)
-                    pacmans[i].direction = c_key;
+                for (size_t i = 1; i < pl_count; ++i) {
+                    if (strcmp(temp_name, pacmans[i].name) == 0) {
+                        pacmans[i].direction = key;
+                        break;
+                    } else {
+                        continue;
+                    }
                 }
             }
         }
     }
 }
 
-void send_all(uint8_t key) {
-    for (size_t i = 1; i < pl_count; ++i)
-    write(pacmans[i].sd, &key, 1);
-}
-
 void send_all_with_exception(uint8_t key, int exception) {
+    uint32_t namelen = pacmans[exception].namelen;
+    char *sender_name = pacmans[exception].name;
     Package send_key;
     send_key.magic = mgc;
     send_key.ptype = 0xffffffff;
     send_key.datasize = 1;
     for (size_t i = 1; i < pl_count; ++i) {
         if (i != exception) {
-            uint32_t namelen = pacmans[i].namelen;
-            char *sender_name = pacmans[i].name;
             write(pacmans[i].sd, &send_key, sizeof(send_key));
             write(pacmans[i].sd, &key, 1);
             Package cli_name;
@@ -290,37 +295,36 @@ void server_handler(struct sockaddr_in *addr) {
 	} else {
 		mvprintw(0, 0, "Server listening...\n");
 	}
+    int cnt = 1;
     while (TRUE) {
         if (cnt == pl_count) break;
+
         if (cd = accept(sd, NULL, NULL)) {
             pacmans[cnt].sd = cd;
-            
             Package connect;
             read(cd, &connect, sizeof(connect));
-            if (connect.magic != mgc || connect.datasize > PLAYERNAME_LEN) {
-                close(cd);
-                continue;;
-            } else {
-                pacmans[cnt].namelen = connect.datasize;    
-            }
-            char tmpname[PLAYERNAME_LEN];
-            read(cd, &tmpname, connect.datasize);
-            pacmans[cnt].name = tmpname;
-            
-            Package sendmap;
-            sendmap.magic = mgc;
-            sendmap.ptype = 0x10;
-            sendmap.datasize = sizeof(arr1);
-	        write(cd, &sendmap, sizeof(sendmap));
-	        write(cd, &arr1, sendmap.datasize);
-            
-            Package client_ready;
-	        read(cd, &client_ready, sizeof(client_ready));            
-            cnt++;
-            ready_clients++;
-            continue;
-        }
+            if (connect.magic == mgc && connect.datasize < PLAYERNAME_LEN) {
+                char tmpname[connect.datasize];
+                pacmans[cnt].namelen = connect.datasize;
+                read(cd, &tmpname, connect.datasize);
+                pacmans[cnt].name = malloc(connect.datasize);
+                strncpy(pacmans[cnt].name, tmpname, connect.datasize);
+
+                Package sendmap;
+                sendmap.magic = mgc;
+                sendmap.ptype = 0x10;
+                sendmap.datasize = sizeof(arr1);
+                write(cd, &sendmap, sizeof(sendmap));
+	            write(cd, &arr1, sendmap.datasize);
+                
+                Package client_ready;
+	            read(cd, &client_ready, sizeof(client_ready));            
+                cnt++;
+                ready_clients++;
+            }  
+        }           
     }
+    
 
     Info *ptr = malloc(sizeof(Info));
 	ptr->frame_timeout = FPS_TIMEOUT;
@@ -363,7 +367,6 @@ void server_handler(struct sockaddr_in *addr) {
     for (size_t i = 1; i < pl_count; i++) {
         write(pacmans[i].sd, &sg_players, sizeof(sg_players));
         write(pacmans[i].sd, ptr->players, sg_players.datasize);
-
     }
 
     for (size_t i = 1; i < pl_count; i++) {             //outer cycle for descriptors
@@ -492,8 +495,10 @@ void pack_playerdata(Info* data) {
     pl_count = data->pl_count;
     fps = data->frame_timeout;
     for (size_t i = 0; i < pl_count; ++i) {
-        pacmans[i].name = data->players[i].player_name;
-        if (strcmp(name, pacmans[i].name) == 0) c_sid = i;
+        pacmans[i].namelen = data->players[i].player_name_len;
+        pacmans[i].name = malloc(pacmans[i].namelen);
+        pacmans[i].name = data->players[i].player_name;     //05.28
+        if (strcmp(name, pacmans[i].name) == 0) self_id = i;
         pacmans[i].is_connected = TRUE;
         pacmans[i].coords.x = data->players[i].start_x;
         pacmans[i].coords.y = data->players[i].start_y;
@@ -542,6 +547,7 @@ int main(int argc, char **argv) {
             genarr1(arr1);
             gen_map(arr1,arr2,arr3,arr4,map);     
             pthread_create(&registration, NULL, server_handler, &addr);
+            pthread_join(registration, NULL);
 
             pthread_create(&keyboard, NULL, server_input, NULL);
             pthread_create(&netthread, NULL, broadcast, NULL);
@@ -571,7 +577,11 @@ int main(int argc, char **argv) {
                 pacmans[i].name);
                 mvprintw(16+i, 0, "pacmans[%ld].dir %d", i, \
                 pacmans[i].direction);
-            }       
+            }
+        mvprintw(21, 0, "self id: %d", self_id);                  
+        mvprintw(22, 0, "ready: %d", ready_clients);   
+        mvprintw(25, 0, "name: %s", name);  
+        mvprintw(26, 0, "poll hit: %d", pollhit);
     }
 
     endwin();
