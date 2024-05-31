@@ -293,8 +293,7 @@ void *broadcast(void *none) {                      //server
                     fds[i].revents = 0;
                     pollhit++;
                     Package cli_key;
-                    //read(pacmans[i].sd, &cli_key, sizeof(cli_key));
-                    READ(pacmans[i].sd, &cli_key, sizeof(cli_key));
+                    read(pacmans[i].sd, &cli_key, sizeof(cli_key));
                     if (cli_key.magic == mgc && cli_key.ptype == 0x00) {
                         uint8_t key;
                         read(pacmans[i].sd, &key, 1);
