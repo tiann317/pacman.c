@@ -1,7 +1,7 @@
 //todo: 
-//network bytorder
-//players should stuch on collision
-//propper game ending
+//players should stuck on collision
+//synchronization
+//bugs: incorrect map representation in some situations
 #include <ncurses.h>
 #include <pthread.h>
 #include <unistd.h> 
@@ -102,6 +102,22 @@ Boundary boundary;
 Boundary quarter;
 Pacman pacmans[MAX_PACMAN_COUNT] = {0};
 
+Package htonl_Package_struct(Package foo) {
+    Package new;
+    new.magic = htonl(foo.magic);
+    new.ptype = htonl(foo.ptype);
+    new.datasize = htonl(foo.datasize);
+    return new;
+}
+
+Package ntohl_Package_struct(Package foo) {
+    Package new;
+    new.magic = ntohl(foo.magic);
+    new.ptype = ntohl(foo.ptype);
+    new.datasize = ntohl(foo.datasize);
+    return new;
+}
+
 void find_player_location(char arr[lheight][lwidth]) {
     while (pacmans[0].coords.x == 0) {
         int rand_height = rand()%14;
@@ -116,6 +132,7 @@ void find_player_location(char arr[lheight][lwidth]) {
         }
     }
 }
+
 static void genarr1(char arr[lheight][lwidth]) {
     for (int i = 0; i < lheight; i++) {
         for (int j = 0; j < lwidth; j++) {
@@ -138,7 +155,6 @@ static void genarr1(char arr[lheight][lwidth]) {
         }   
     }
     find_player_location(arr);
-
 }
 
 void gen_map(char arr1[lheight][lwidth],\
@@ -232,7 +248,8 @@ void *server_input(void *none) {
                 Package key;
                 key.magic = mgc;
                 key.ptype = 0x00;
-                key.datasize = 1;                
+                key.datasize = 1;
+                key = htonl_Package_struct(key);                
                 write(pacmans[i].sd, &key, sizeof(key));
                 write(pacmans[i].sd, &pacmans[0].direction, 1);                
             }
@@ -251,6 +268,7 @@ void *client_input(void *none) {
             key.magic = mgc;
             key.ptype = 0x00;
             key.datasize = 1;
+            key = htonl_Package_struct(key);
             write(sd, &key, sizeof(key));
             write(sd, &pacmans[self_id].direction, 1);
         }     
@@ -264,6 +282,7 @@ void send_all_with_exception(uint8_t key, int exception) {
     send_key.magic = mgc;
     send_key.ptype = 0xffffffff;
     send_key.datasize = 1;
+    send_key = htonl_Package_struct(send_key);
     for (size_t i = 1; i < pl_count; ++i) {
         if (i != exception) {
             write(pacmans[i].sd, &send_key, sizeof(send_key));
@@ -272,6 +291,7 @@ void send_all_with_exception(uint8_t key, int exception) {
             cli_name.magic = mgc;
             cli_name.ptype = 0xffffffff;
             cli_name.datasize = namelen;
+            cli_name = htonl_Package_struct(cli_name);
             write(pacmans[i].sd, &cli_name, sizeof(cli_name));
             write(pacmans[i].sd, sender_name, namelen);
         }
@@ -294,6 +314,7 @@ void *broadcast(void *none) {                      //server
                     pollhit++;
                     Package cli_key;
                     read(pacmans[i].sd, &cli_key, sizeof(cli_key));
+                    cli_key = ntohl_Package_struct(cli_key);
                     if (cli_key.magic == mgc && cli_key.ptype == 0x00) {
                         uint8_t key;
                         read(pacmans[i].sd, &key, 1);
@@ -311,6 +332,7 @@ void *socket_keys(void *none) {
         Package serv_key;
         uint8_t key;
         read(sd, &serv_key, sizeof(serv_key));
+        serv_key = ntohl_Package_struct(serv_key);
         if (serv_key.magic == mgc \
         && serv_key.ptype == 0x00) {        
             read(sd, &key, 1);
@@ -320,6 +342,7 @@ void *socket_keys(void *none) {
             read(sd, &key, 1);
             Package name;
             read(sd, &name, sizeof(name));
+            name = ntohl_Package_struct(name);
             if (name.magic == mgc && name.ptype == 0xffffffff) {
                 char temp_name[name.datasize];                //im here 28.05
                 read(sd, &temp_name, name.datasize);
@@ -389,6 +412,7 @@ void *server_handler(void *address) {
             pacmans[cnt].sd = cd;
             Package connect;
             read(cd, &connect, sizeof(connect));
+            connect = ntohl_Package_struct(connect);
             if (connect.magic == mgc && connect.datasize < PLAYERNAME_LEN) {
                 char tmpname[connect.datasize];
                 pacmans[cnt].namelen = connect.datasize;
@@ -400,22 +424,26 @@ void *server_handler(void *address) {
                 sendmap.magic = mgc;
                 sendmap.ptype = 0x10;
                 sendmap.datasize = sizeof(arr1);
+                sendmap = htonl_Package_struct(sendmap);
                 write(cd, &sendmap, sizeof(sendmap));
-	            write(cd, &arr1, sendmap.datasize);
+	            write(cd, &arr1, sizeof(arr1));
                 
                 Package client_ready;
-	            read(cd, &client_ready, sizeof(client_ready));            
-                cnt++;
-                ready_clients++;
+	            read(cd, &client_ready, sizeof(client_ready));
+                client_ready = ntohl_Package_struct(client_ready); 
+                if (client_ready.magic == mgc && client_ready.ptype == 0x02) {
+                    cnt++;
+                    ready_clients++;
+                }    
             }  
         }           
     }
     
     Info *ptr = malloc(sizeof(Info));
     fps = FPS_TIMEOUT;
-	ptr->frame_timeout = FPS_TIMEOUT;
-	ptr->pl_count = pl_count;
-	ptr->players = malloc(sizeof(Player) * ptr->pl_count);
+	ptr->frame_timeout = htonl(FPS_TIMEOUT);
+	ptr->pl_count = htonl(pl_count);
+	ptr->players = malloc(sizeof(Player) * pl_count);
 
     assign_coords();
     for (size_t i = 0; i < pl_count; ++i) {
@@ -426,32 +454,33 @@ void *server_handler(void *address) {
         pacmans[i].is_connected = TRUE;
         pacmans[i].score = 0; 
         uint32_t namelen = pacmans[i].namelen;
-        ptr->players[i].player_name_len = namelen;
+        ptr->players[i].player_name_len = htonl(namelen);
         ptr->players[i].player_name = malloc(namelen);
 	    memcpy(ptr->players[i].player_name, pacmans[i].name, namelen);
-        ptr->players[i].start_direction = pacmans[i].direction;        
-        ptr->players[i].start_x = pacmans[i].coords.x;    
-        ptr->players[i].start_y = pacmans[i].coords.y;            
+        ptr->players[i].start_direction = htonl(pacmans[i].direction);        
+        ptr->players[i].start_x = htonl(pacmans[i].coords.x);    
+        ptr->players[i].start_y = htonl(pacmans[i].coords.y );            
     }
 
     Package sg_info;                            //sg == start game package
 	sg_info.magic = mgc;
 	sg_info.ptype = 0x20;
 	sg_info.datasize = sizeof(Info);
+    sg_info = htonl_Package_struct(sg_info);
 
     for (size_t i = 1; i < pl_count; i++) {
         write(pacmans[i].sd, &sg_info, sizeof(sg_info));
-        write(pacmans[i].sd, ptr, sg_info.datasize);
+        write(pacmans[i].sd, ptr, sizeof(Info));
     }
 
     Package sg_players;
 	sg_players.magic = mgc;
 	sg_players.ptype = 0x20;
 	sg_players.datasize = sizeof(Player) * pl_count;
-
+    sg_players = htonl_Package_struct(sg_players);
     for (size_t i = 1; i < pl_count; i++) {
         write(pacmans[i].sd, &sg_players, sizeof(sg_players));
-        write(pacmans[i].sd, ptr->players, sg_players.datasize);
+        write(pacmans[i].sd, ptr->players, sizeof(Player) * pl_count);
     }
 
     for (size_t i = 1; i < pl_count; i++) {             //outer cycle for descriptors
@@ -482,11 +511,13 @@ Info *client_connect(struct sockaddr_in addr) {
     connect.magic = mgc;
     connect.ptype = 0x02;
     connect.datasize = strlen(name) + 1;
+    connect = htonl_Package_struct(connect);
     write(sd, &connect, sizeof(connect));
-    write(sd, name, connect.datasize);
+    write(sd, name, strlen(name) + 1);
 
     Package getmap;
 	read(sd, &getmap, sizeof(getmap));
+    getmap = ntohl_Package_struct(getmap);
 	char one_dim_map[getmap.datasize];
 	read(sd, &one_dim_map, getmap.datasize);
     expand_map(one_dim_map);                    
@@ -495,18 +526,31 @@ Info *client_connect(struct sockaddr_in addr) {
     client_ready.magic = mgc;
     client_ready.ptype = 0x02;
     client_ready.datasize = 0;
+    client_ready = htonl_Package_struct(client_ready);
 	write(sd, &client_ready, sizeof(client_ready));
 
     Package sg_info;                                //start game package header
     read(sd, &sg_info, sizeof(sg_info));
-	
+	sg_info = ntohl_Package_struct(sg_info);
+
 	Info *p = malloc(sizeof(Info));                 
     read(sd, p, sg_info.datasize);                  //start game package data
+    p->pl_count = ntohl(p->pl_count);
+    p->frame_timeout = ntohl(p->frame_timeout); 
 	p->players = malloc(sizeof(Player) * p->pl_count);
 
     Package sg_players;
 	read(sd, &sg_players, sizeof(sg_players));
+    sg_players = ntohl_Package_struct(sg_players);
 	read(sd, p->players, sg_players.datasize);
+
+    //change be32 to le32
+    for (size_t i = 0; i < p->pl_count; ++i) {
+        p->players[i].player_name_len = ntohl(p->players[i].player_name_len);
+        p->players[i].start_direction = ntohl(p->players[i].start_direction);
+        p->players[i].start_x = ntohl(p->players[i].start_x);
+        p->players[i].start_y = ntohl(p->players[i].start_y); 
+    }
 	
 	for (size_t i = 0; i < p->pl_count; ++i) {
 		p->players[i].player_name = malloc(p->players[i].player_name_len);
@@ -732,6 +776,7 @@ int main(int argc, char **argv) {
         } else {
             break;
         }
+
     }
 
     endwin();
